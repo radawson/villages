@@ -90,7 +90,8 @@ public class VillageChunkListener implements Listener {
      * 
      * This method:
      * 1. Gets or creates a UUID for the bell using VillageManager
-     * 2. Places signs around the bell using SignManager
+     * 2. Gets the village name (if it exists) from VillageManager
+     * 3. Places signs around the bell using SignManager (with name if available, UUID otherwise)
      * 
      * @param bellBlock The bell block to process
      */
@@ -98,8 +99,11 @@ public class VillageChunkListener implements Listener {
         // Get or create the UUID for this village bell
         UUID villageUuid = villageManager.getOrCreateVillageUuid(bellBlock);
         
-        // Place signs around the bell with the UUID
-        signManager.placeSignsAroundBell(bellBlock, villageUuid);
+        // Get the village name if it exists
+        String villageName = villageManager.getVillageName(bellBlock);
+        
+        // Place signs around the bell with the name (or UUID if no name)
+        signManager.placeSignsAroundBell(bellBlock, villageUuid, villageName);
     }
     
     /**

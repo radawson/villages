@@ -26,6 +26,7 @@ public class VillageManager {
     
     private final VillagesPlugin plugin;
     private final NamespacedKey villageUuidKey;
+    private final NamespacedKey villageNameKey;
     
     /**
      * Creates a new VillageManager.
@@ -37,6 +38,8 @@ public class VillageManager {
         // Create a unique NamespacedKey for storing village UUIDs
         // Format: plugin_name:key_name
         this.villageUuidKey = new NamespacedKey(plugin, "village_uuid");
+        // Create a unique NamespacedKey for storing village names
+        this.villageNameKey = new NamespacedKey(plugin, "village_name");
     }
     
     /**
@@ -114,5 +117,57 @@ public class VillageManager {
      */
     public NamespacedKey getVillageUuidKey() {
         return villageUuidKey;
+    }
+    
+    /**
+     * Sets the name for a village bell block.
+     * 
+     * This method:
+     * 1. Gets the block's state (BlockState) which provides access to PDC
+     * 2. Gets the PersistentDataContainer from the block state
+     * 3. Stores the name as a string in the PDC
+     * 4. Updates the block state to persist the changes
+     * 
+     * @param bellBlock The bell block to set the name for
+     * @param name The name to assign to the village (can be null to remove the name)
+     */
+    public void setVillageName(Block bellBlock, String name) {
+        BlockState blockState = bellBlock.getState();
+        if (!(blockState instanceof PersistentDataHolder holder)) {
+            plugin.getLogger().warning("BlockState does not support PDC at " + bellBlock.getLocation());
+            return;
+        }
+        PersistentDataContainer pdc = holder.getPersistentDataContainer();
+        
+        if (name == null || name.trim().isEmpty()) {
+            // Remove the name if null or empty
+            pdc.remove(villageNameKey);
+        } else {
+            // Store the name in the PDC as a string
+            pdc.set(villageNameKey, PersistentDataType.STRING, name.trim());
+        }
+        
+        // IMPORTANT: We must apply the changes to save the PDC data
+        blockState.update();
+        
+        plugin.getLogger().info("Set village name to '" + name + "' for bell at " + bellBlock.getLocation());
+    }
+    
+    /**
+     * Gets the name for a village bell block, if one exists.
+     * 
+     * @param bellBlock The bell block to check
+     * @return The village name if it exists, null otherwise
+     */
+    public String getVillageName(Block bellBlock) {
+        BlockState blockState = bellBlock.getState();
+        if (!(blockState instanceof PersistentDataHolder holder)) {
+            return null;
+        }
+        PersistentDataContainer pdc = holder.getPersistentDataContainer();
+        
+        String name = pdc.get(villageNameKey, PersistentDataType.STRING);
+        
+        return name;
     }
 }

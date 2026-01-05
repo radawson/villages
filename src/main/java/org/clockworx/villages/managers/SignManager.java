@@ -62,13 +62,28 @@ public class SignManager {
      * @param villageUuid The UUID to display on the signs
      */
     public void placeSignsAroundBell(Block bellBlock, UUID villageUuid) {
-        String uuidString = villageUuid.toString();
-        
-        // Split UUID into parts for display across sign lines
-        // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 characters)
-        // We'll put "Village UUID:" on line 1, then split the UUID across lines 2-4
-        String[] uuidParts = splitUuidForSign(uuidString);
-        
+        placeSignsAroundBell(bellBlock, villageUuid, null);
+    }
+    
+    /**
+     * Places or updates signs on all four sides of a bell block with the village name or UUID.
+     * 
+     * This method:
+     * 1. Gets the bell's location
+     * 2. For each cardinal direction, tries to place a sign one block down (at the base)
+     * 3. If the block below is not replaceable, falls back to the same level as the bell
+     * 4. Checks if the target block is air or a replaceable block (like grass, flowers, etc.)
+     * 5. Places a wall sign facing the bell
+     * 6. Sets the sign text to display the name (if provided) or UUID (if name is null)
+     * 
+     * Placing signs at the base (Y-1) makes the bell easier to ring and looks more aesthetic
+     * than placing them at the same level as the bell itself.
+     * 
+     * @param bellBlock The bell block to place signs around
+     * @param villageUuid The UUID to display on the signs (used as fallback if name is null)
+     * @param villageName The name to display on the signs (null to display UUID instead)
+     */
+    public void placeSignsAroundBell(Block bellBlock, UUID villageUuid, String villageName) {
         for (BlockFace direction : CARDINAL_DIRECTIONS) {
             // First, try to place the sign one block down (at the base of the bell)
             // This makes ringing the bell easier and looks better
@@ -77,20 +92,22 @@ public class SignManager {
             // Check if we can place a sign here (air or replaceable blocks)
             if (canPlaceSign(signBlock)) {
                 // Place a wall sign facing away from the bell (in the same direction as placement)
-                placeWallSign(signBlock, direction, uuidParts);
+                placeWallSign(signBlock, direction, villageUuid, villageName);
                 
                 plugin.getLogger().fine("Placed sign at base level " + signBlock.getLocation() + 
-                    " facing " + direction + " (away from bell) with UUID: " + villageUuid);
+                    " facing " + direction + " (away from bell) with " + 
+                    (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
             } else {
                 // Fall back to the same level as the bell if the base block isn't replaceable
                 Block fallbackBlock = bellBlock.getRelative(direction);
                 
                 if (canPlaceSign(fallbackBlock)) {
                     // Place a wall sign facing away from the bell (in the same direction as placement)
-                    placeWallSign(fallbackBlock, direction, uuidParts);
+                    placeWallSign(fallbackBlock, direction, villageUuid, villageName);
                     
                     plugin.getLogger().fine("Placed sign at bell level " + fallbackBlock.getLocation() + 
-                        " facing " + direction + " (away from bell) with UUID: " + villageUuid);
+                        " facing " + direction + " (away from bell) with " + 
+                        (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
                 } else {
                     plugin.getLogger().fine("Cannot place sign at " + signBlock.getLocation() + 
                         " or " + fallbackBlock.getLocation() + " - blocks are not replaceable");
@@ -132,9 +149,10 @@ public class SignManager {
      * 
      * @param block The block where the sign should be placed
      * @param facing The direction the sign should face (away from the bell)
-     * @param uuidParts The UUID text split into parts for the sign lines
+     * @param villageUuid The UUID to display (used if villageName is null)
+     * @param villageName The name to display (null to display UUID instead)
      */
-    private void placeWallSign(Block block, BlockFace facing, String[] uuidParts) {
+    private void placeWallSign(Block block, BlockFace facing, UUID villageUuid, String villageName) {
         // Set the block type to a wall sign
         // We need to use the appropriate sign material based on the block's material
         Material signMaterial = getSignMaterial(block);
@@ -160,13 +178,63 @@ public class SignManager {
         
         // Set the text on the sign using Kyori Adventure components
         // This is the modern, non-deprecated way to set sign text
-        signSide.line(0, Component.text("Village UUID:"));
-        signSide.line(1, Component.text(uuidParts[0])); // First part of UUID
-        signSide.line(2, Component.text(uuidParts[1])); // Second part of UUID
-        signSide.line(3, Component.text(uuidParts[2])); // Third part of UUID
+        if (villageName != null && !villageName.trim().isEmpty()) {
+            // Display the village name
+            signSide.line(0, Component.text("Village:"));
+            // Split long names across multiple lines if needed
+            String[] nameParts = splitNameForSign(villageName);
+            signSide.line(1, Component.text(nameParts[0]));
+            signSide.line(2, Component.text(nameParts.length > 1 ? nameParts[1] : ""));
+            signSide.line(3, Component.text(nameParts.length > 2 ? nameParts[2] : ""));
+        } else {
+            // Display the UUID as fallback
+            String uuidString = villageUuid.toString();
+            String[] uuidParts = splitUuidForSign(uuidString);
+            signSide.line(0, Component.text("Village UUID:"));
+            signSide.line(1, Component.text(uuidParts[0])); // First part of UUID
+            signSide.line(2, Component.text(uuidParts[1])); // Second part of UUID
+            signSide.line(3, Component.text(uuidParts[2])); // Third part of UUID
+        }
         
         // Apply the changes
         sign.update();
+    }
+    
+    /**
+     * Splits a village name into parts that fit on sign lines.
+     * Sign lines can hold 15 characters, so we'll split long names appropriately.
+     * 
+     * @param name The village name to split
+     * @return Array of strings for the sign lines (up to 3 lines)
+     */
+    private String[] splitNameForSign(String name) {
+        String trimmed = name.trim();
+        // Sign lines can hold 15 characters
+        int maxLineLength = 15;
+        String[] parts = new String[3];
+        
+        if (trimmed.length() <= maxLineLength) {
+            // Name fits on one line
+            parts[0] = trimmed;
+            parts[1] = "";
+            parts[2] = "";
+        } else if (trimmed.length() <= maxLineLength * 2) {
+            // Name fits on two lines
+            parts[0] = trimmed.substring(0, maxLineLength);
+            parts[1] = trimmed.substring(maxLineLength);
+            parts[2] = "";
+        } else {
+            // Name needs three lines (truncate if longer)
+            parts[0] = trimmed.substring(0, maxLineLength);
+            parts[1] = trimmed.substring(maxLineLength, Math.min(maxLineLength * 2, trimmed.length()));
+            if (trimmed.length() > maxLineLength * 2) {
+                parts[2] = trimmed.substring(maxLineLength * 2, Math.min(maxLineLength * 3, trimmed.length()));
+            } else {
+                parts[2] = "";
+            }
+        }
+        
+        return parts;
     }
     
     /**

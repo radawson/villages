@@ -1,7 +1,12 @@
 name: Villages
-version: 0.1.0
+version: 0.1.1
 main: org.clockworx.villages.VillagesPlugin
 api-version: '1.21.11'
 description: Paper Enhanced Villages
 author: RADawson
 website: https://github.com/radawson/villages
+
+permissions:
+  villages.name:
+    description: Allows naming villages
+    default: op

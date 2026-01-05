@@ -35,8 +35,8 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
       
-      - name: Build with Gradle
-        run: ./gradlew build
+      - name: Build shadow JAR
+        run: ./gradlew shadowJar
       
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
