@@ -1,6 +1,10 @@
 plugins {
-    java
+    id("java")
+    id("com.gradleup.shadow") version "9.0.0-beta12"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.18"
 }
+
+group = "org.clockworx.villages"
 
 repositories {
   maven {
