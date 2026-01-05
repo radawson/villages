@@ -1,5 +1,7 @@
 package org.clockworx.villages;
 
+import dev.jorel.commandapi.CommandAPI;
+import dev.jorel.commandapi.CommandAPIPaperConfig;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.clockworx.villages.commands.VillageCommand;
 import org.clockworx.villages.listeners.VillageChunkListener;
@@ -25,11 +27,13 @@ public class VillagesPlugin extends JavaPlugin {
     
     /**
      * Called when the plugin is loaded (before onEnable).
-     * For shaded CommandAPI, initialization is typically not needed in onLoad.
+     * CommandAPI 11.1.0 requires initialization in onLoad() before commands can be registered.
      */
     @Override
     public void onLoad() {
-        // Shaded CommandAPI doesn't require onLoad initialization
+        // Initialize CommandAPI with Paper configuration
+        // This must be called before registering any commands
+        CommandAPI.onLoad(new CommandAPIPaperConfig(this));
     }
     
     /**
@@ -46,7 +50,10 @@ public class VillagesPlugin extends JavaPlugin {
         this.chunkListener = new VillageChunkListener(villageManager, signManager);
         getServer().getPluginManager().registerEvents(chunkListener, this);
         
-        // Register commands (CommandAPI shaded version doesn't require explicit onEnable)
+        // Initialize CommandAPI for this plugin
+        CommandAPI.onEnable();
+        
+        // Register commands
         this.villageCommand = new VillageCommand(this, villageManager, signManager);
         villageCommand.register();
         
@@ -61,6 +68,9 @@ public class VillagesPlugin extends JavaPlugin {
      */
     @Override
     public void onDisable() {
+        // Unregister CommandAPI commands
+        CommandAPI.onDisable();
+        
         getLogger().info("Villages plugin has been disabled!");
     }
     

@@ -36,42 +36,27 @@ java {
 }
 
 tasks {
-  // Task to replace version placeholders in source and resource files
-  val processVersion by registering {
-    group = "build"
-    description = "Replaces version placeholders in source and resource files"
-    
-    val version = project.property("version") as String
-    
-    doLast {
-      // Process resource files
-      val pluginYml = file("src/main/resources/plugin.yml")
-      val paperPluginYml = file("src/main/resources/paper-plugin.yml")
-      
-      if (pluginYml.exists()) {
-        pluginYml.writeText(pluginYml.readText().replace("\${version}", version))
-      }
-      
-      if (paperPluginYml.exists()) {
-        paperPluginYml.writeText(paperPluginYml.readText().replace("\${version}", version))
-      }
-      
-      // Process Java source file
-      val pluginJava = file("src/main/java/org/clockworx/villages/VillagesPlugin.java")
-      if (pluginJava.exists()) {
-        pluginJava.writeText(pluginJava.readText().replace("{\$version}", version))
+  // Process resources to replace version placeholders
+  // This replaces ${version} and ${project.version} in resource files during build
+  // without modifying source files - processed files go to build output directory
+  processResources {
+    // Process all YAML resource files for version expansion
+    filesMatching(listOf("plugin.yml", "paper-plugin.yml")) {
+      // Replace ${version} and ${project.version} with actual version from gradle.properties
+      expand(
+        "version" to project.version,
+        "project.version" to project.version
+      )
+      // Also handle $version (without braces) for compatibility
+      filter { line ->
+        line.replace("\$version", project.version.toString())
       }
     }
   }
   
-  // Make processResources and compileJava depend on processVersion
-  processResources {
-    dependsOn("processVersion")
-  }
-  
-  compileJava {
-    dependsOn("processVersion")
-  }
+  // Note: Java source file @version annotation is not processed automatically
+  // to avoid modifying source files. Update it manually when changing versions,
+  // or use a build-time annotation processor if needed.
   
   // Configure the JAR task to include plugin.yml
   jar {
@@ -104,10 +89,20 @@ tasks.shadowJar {
   from(project.configurations.runtimeClasspath) {
     // Exclude paperweight dev bundle - it's only for development
     exclude("**/paper-dev-bundle/**")
+    // Exclude plugin.yml from dependencies - we have our own
+    exclude("plugin.yml")
   }
+  
+  // Exclude Maven metadata (not needed in final JAR)
+  exclude("META-INF/maven/**")
   
   // Merge service files if any
   mergeServiceFiles()
+  
+  // Our plugin.yml from src/main/resources is included automatically
+  // and will be in the JAR, but CommandAPI's plugin.yml might overwrite it
+  // So we need to ensure ours is last by using duplicatesStrategy
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
   
   // Don't relocate CommandAPI - it's already designed to be shaded
   // and relocation would break the imports
