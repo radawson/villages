@@ -13,7 +13,7 @@ import org.clockworx.villages.managers.VillageManager;
  * and places signs around the bell displaying the UUID.
  * 
  * @author Clockworx
- * @version 0.1.0
+ * @version {$version}
  */
 public class VillagesPlugin extends JavaPlugin {
     

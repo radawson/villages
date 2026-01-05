@@ -1,5 +1,5 @@
 name: Villages
-version: ${version}
+version: 0.1.0
 main: org.clockworx.villages.VillagesPlugin
 api-version: '1.21.11'
 description: Paper Enhanced Villages

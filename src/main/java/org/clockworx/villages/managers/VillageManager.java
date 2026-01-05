@@ -4,6 +4,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataHolder;
 import org.bukkit.persistence.PersistentDataType;
 import org.clockworx.villages.VillagesPlugin;
 
@@ -53,8 +54,14 @@ public class VillageManager {
      */
     public UUID getOrCreateVillageUuid(Block bellBlock) {
         // Get the block state - this is required to access PDC on blocks
+        // BlockState implements PersistentDataHolder, so we can access PDC
         BlockState blockState = bellBlock.getState();
-        PersistentDataContainer pdc = blockState.getPersistentDataContainer();
+        if (!(blockState instanceof PersistentDataHolder holder)) {
+            plugin.getLogger().warning("BlockState does not support PDC at " + bellBlock.getLocation());
+            // Fallback: generate a UUID but can't persist it
+            return UUID.randomUUID();
+        }
+        PersistentDataContainer pdc = holder.getPersistentDataContainer();
         
         // Check if a UUID already exists in the PDC
         String existingUuid = pdc.get(villageUuidKey, PersistentDataType.STRING);
@@ -86,7 +93,10 @@ public class VillageManager {
      */
     public UUID getVillageUuid(Block bellBlock) {
         BlockState blockState = bellBlock.getState();
-        PersistentDataContainer pdc = blockState.getPersistentDataContainer();
+        if (!(blockState instanceof PersistentDataHolder holder)) {
+            return null;
+        }
+        PersistentDataContainer pdc = holder.getPersistentDataContainer();
         
         String uuidString = pdc.get(villageUuidKey, PersistentDataType.STRING);
         

@@ -1,6 +1,6 @@
 package org.clockworx.villages.managers;
 
-import org.bukkit.Location;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -62,7 +62,6 @@ public class SignManager {
      * @param villageUuid The UUID to display on the signs
      */
     public void placeSignsAroundBell(Block bellBlock, UUID villageUuid) {
-        Location bellLocation = bellBlock.getLocation();
         String uuidString = villageUuid.toString();
         
         // Split UUID into parts for display across sign lines
@@ -77,22 +76,21 @@ public class SignManager {
             
             // Check if we can place a sign here (air or replaceable blocks)
             if (canPlaceSign(signBlock)) {
-                // Place a wall sign facing the opposite direction (toward the bell)
-                BlockFace oppositeDirection = direction.getOppositeFace();
-                placeWallSign(signBlock, oppositeDirection, uuidParts);
+                // Place a wall sign facing away from the bell (in the same direction as placement)
+                placeWallSign(signBlock, direction, uuidParts);
                 
                 plugin.getLogger().fine("Placed sign at base level " + signBlock.getLocation() + 
-                    " facing " + oppositeDirection + " with UUID: " + villageUuid);
+                    " facing " + direction + " (away from bell) with UUID: " + villageUuid);
             } else {
                 // Fall back to the same level as the bell if the base block isn't replaceable
                 Block fallbackBlock = bellBlock.getRelative(direction);
                 
                 if (canPlaceSign(fallbackBlock)) {
-                    BlockFace oppositeDirection = direction.getOppositeFace();
-                    placeWallSign(fallbackBlock, oppositeDirection, uuidParts);
+                    // Place a wall sign facing away from the bell (in the same direction as placement)
+                    placeWallSign(fallbackBlock, direction, uuidParts);
                     
                     plugin.getLogger().fine("Placed sign at bell level " + fallbackBlock.getLocation() + 
-                        " facing " + oppositeDirection + " with UUID: " + villageUuid);
+                        " facing " + direction + " (away from bell) with UUID: " + villageUuid);
                 } else {
                     plugin.getLogger().fine("Cannot place sign at " + signBlock.getLocation() + 
                         " or " + fallbackBlock.getLocation() + " - blocks are not replaceable");
@@ -110,17 +108,30 @@ public class SignManager {
     private boolean canPlaceSign(Block block) {
         Material type = block.getType();
         // Air and various replaceable blocks (grass, flowers, etc.) can be replaced
-        return type.isAir() || type == Material.GRASS || type == Material.TALL_GRASS ||
-               type == Material.FERN || type == Material.LARGE_FERN ||
-               type == Material.DANDELION || type == Material.POPPY ||
-               type == Material.SNOW || type == Material.VINE;
+        // Using isAir() as the primary check, plus common replaceable vegetation blocks
+        if (type.isAir()) {
+            return true;
+        }
+        
+        // Check for common replaceable vegetation blocks
+        // Note: Material enum names may vary by version, so we check multiple possibilities
+        return type == Material.TALL_GRASS ||
+               type == Material.FERN || 
+               type == Material.LARGE_FERN ||
+               type == Material.DANDELION || 
+               type == Material.POPPY ||
+               type == Material.SNOW || 
+               type == Material.VINE ||
+               // Try alternative grass material names that may exist in different versions
+               type.name().equals("SHORT_GRASS") ||
+               type.name().equals("GRASS");
     }
     
     /**
      * Places a wall sign at the given location facing the specified direction.
      * 
      * @param block The block where the sign should be placed
-     * @param facing The direction the sign should face (toward the bell)
+     * @param facing The direction the sign should face (away from the bell)
      * @param uuidParts The UUID text split into parts for the sign lines
      */
     private void placeWallSign(Block block, BlockFace facing, String[] uuidParts) {
@@ -147,11 +158,12 @@ public class SignManager {
         // Get the front side of the sign (the side that faces the bell)
         SignSide signSide = sign.getSide(Side.FRONT);
         
-        // Set the text on the sign
-        signSide.setLine(0, "Village UUID:");
-        signSide.setLine(1, uuidParts[0]); // First part of UUID
-        signSide.setLine(2, uuidParts[1]); // Second part of UUID
-        signSide.setLine(3, uuidParts[2]); // Third part of UUID
+        // Set the text on the sign using Kyori Adventure components
+        // This is the modern, non-deprecated way to set sign text
+        signSide.line(0, Component.text("Village UUID:"));
+        signSide.line(1, Component.text(uuidParts[0])); // First part of UUID
+        signSide.line(2, Component.text(uuidParts[1])); // Second part of UUID
+        signSide.line(3, Component.text(uuidParts[2])); // Third part of UUID
         
         // Apply the changes
         sign.update();

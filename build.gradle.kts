@@ -15,6 +15,8 @@ repositories {
 
 dependencies {
   compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+  
+  paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
 }
 
 java {
@@ -22,6 +24,43 @@ java {
 }
 
 tasks {
+  // Task to replace version placeholders in source and resource files
+  val processVersion by registering {
+    group = "build"
+    description = "Replaces version placeholders in source and resource files"
+    
+    val version = project.property("version") as String
+    
+    doLast {
+      // Process resource files
+      val pluginYml = file("src/main/resources/plugin.yml")
+      val paperPluginYml = file("src/main/resources/paper-plugin.yml")
+      
+      if (pluginYml.exists()) {
+        pluginYml.writeText(pluginYml.readText().replace("\${version}", version))
+      }
+      
+      if (paperPluginYml.exists()) {
+        paperPluginYml.writeText(paperPluginYml.readText().replace("\${version}", version))
+      }
+      
+      // Process Java source file
+      val pluginJava = file("src/main/java/org/clockworx/villages/VillagesPlugin.java")
+      if (pluginJava.exists()) {
+        pluginJava.writeText(pluginJava.readText().replace("{version}", version))
+      }
+    }
+  }
+  
+  // Make processResources and compileJava depend on processVersion
+  processResources {
+    dependsOn("processVersion")
+  }
+  
+  compileJava {
+    dependsOn("processVersion")
+  }
+  
   // Configure the JAR task to include plugin.yml
   jar {
     archiveBaseName.set("Villages")
