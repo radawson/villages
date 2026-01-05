@@ -4,3 +4,4 @@ main: org.clockworx.villages.VillagesPlugin
 api-version: '1.21.11'
 description: Paper Enhanced Villages
 author: RADawson
+website: https://github.com/radawson/villages

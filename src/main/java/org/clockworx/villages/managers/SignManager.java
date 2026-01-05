@@ -49,10 +49,14 @@ public class SignManager {
      * 
      * This method:
      * 1. Gets the bell's location
-     * 2. For each cardinal direction, gets the adjacent block
-     * 3. Checks if it's air or a replaceable block (like grass, flowers, etc.)
-     * 4. Places a wall sign facing the bell
-     * 5. Sets the sign text to display the UUID
+     * 2. For each cardinal direction, tries to place a sign one block down (at the base)
+     * 3. If the block below is not replaceable, falls back to the same level as the bell
+     * 4. Checks if the target block is air or a replaceable block (like grass, flowers, etc.)
+     * 5. Places a wall sign facing the bell
+     * 6. Sets the sign text to display the UUID
+     * 
+     * Placing signs at the base (Y-1) makes the bell easier to ring and looks more aesthetic
+     * than placing them at the same level as the bell itself.
      * 
      * @param bellBlock The bell block to place signs around
      * @param villageUuid The UUID to display on the signs
@@ -67,8 +71,9 @@ public class SignManager {
         String[] uuidParts = splitUuidForSign(uuidString);
         
         for (BlockFace direction : CARDINAL_DIRECTIONS) {
-            // Get the block adjacent to the bell in this direction
-            Block signBlock = bellBlock.getRelative(direction);
+            // First, try to place the sign one block down (at the base of the bell)
+            // This makes ringing the bell easier and looks better
+            Block signBlock = bellBlock.getRelative(direction).getRelative(BlockFace.DOWN);
             
             // Check if we can place a sign here (air or replaceable blocks)
             if (canPlaceSign(signBlock)) {
@@ -76,11 +81,22 @@ public class SignManager {
                 BlockFace oppositeDirection = direction.getOppositeFace();
                 placeWallSign(signBlock, oppositeDirection, uuidParts);
                 
-                plugin.getLogger().fine("Placed sign at " + signBlock.getLocation() + 
+                plugin.getLogger().fine("Placed sign at base level " + signBlock.getLocation() + 
                     " facing " + oppositeDirection + " with UUID: " + villageUuid);
             } else {
-                plugin.getLogger().fine("Cannot place sign at " + signBlock.getLocation() + 
-                    " - block is not replaceable");
+                // Fall back to the same level as the bell if the base block isn't replaceable
+                Block fallbackBlock = bellBlock.getRelative(direction);
+                
+                if (canPlaceSign(fallbackBlock)) {
+                    BlockFace oppositeDirection = direction.getOppositeFace();
+                    placeWallSign(fallbackBlock, oppositeDirection, uuidParts);
+                    
+                    plugin.getLogger().fine("Placed sign at bell level " + fallbackBlock.getLocation() + 
+                        " facing " + oppositeDirection + " with UUID: " + villageUuid);
+                } else {
+                    plugin.getLogger().fine("Cannot place sign at " + signBlock.getLocation() + 
+                        " or " + fallbackBlock.getLocation() + " - blocks are not replaceable");
+                }
             }
         }
     }
