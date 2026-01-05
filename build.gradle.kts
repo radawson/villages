@@ -54,9 +54,40 @@ tasks {
     }
   }
   
-  // Note: Java source file @version annotation is not processed automatically
-  // to avoid modifying source files. Update it manually when changing versions,
-  // or use a build-time annotation processor if needed.
+  // Process Java source files to replace version placeholder in @version annotation
+  // This processes source files before compilation without modifying the original source files
+  val processJavaSources by registering(Copy::class) {
+    val version = project.version.toString()
+    from(sourceSets.main.get().java.srcDirs)
+    into("${buildDir}/processed-sources/java")
+    
+    // Replace version placeholder in Java source files
+    filter { line ->
+      line.replace("{\$version}", version)
+    }
+    
+    // Include all Java files
+    include("**/*.java")
+    
+    // Preserve directory structure
+    includeEmptyDirs = false
+  }
+  
+  // Make compileJava depend on processing Java sources and use processed sources
+  compileJava {
+    dependsOn(processJavaSources)
+    
+    // Configure to use processed sources
+    doFirst {
+      // Temporarily add processed sources to the source set for this compilation
+      val processedSourceDir = file("${buildDir}/processed-sources/java")
+      if (processedSourceDir.exists()) {
+        sourceSets.main.get().java.srcDir(processedSourceDir)
+        // Remove original source directories to avoid duplicates
+        sourceSets.main.get().java.setSrcDirs(listOf(processedSourceDir))
+      }
+    }
+  }
   
   // Configure the JAR task to include plugin.yml
   jar {
