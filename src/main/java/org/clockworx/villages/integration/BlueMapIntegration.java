@@ -7,6 +7,8 @@ import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Integration with BlueMap for displaying village markers on the web map.
@@ -46,11 +48,15 @@ public class BlueMapIntegration {
      * @return true if BlueMap integration was successfully initialized
      */
     public boolean initialize() {
+        logger.debug(LogCategory.GENERAL, "Initializing BlueMap integration...");
+        
         // Check if BlueMap integration is enabled in config
         if (!plugin.getConfigManager().isBlueMapEnabled()) {
             logger.debug(LogCategory.GENERAL, "BlueMap integration is disabled in config");
             return false;
         }
+        
+        logger.debug(LogCategory.GENERAL, "BlueMap integration enabled in config, checking for BlueMap plugin");
         
         // Check if BlueMap plugin is installed
         Plugin blueMapPlugin = Bukkit.getPluginManager().getPlugin("BlueMap");
@@ -59,39 +65,52 @@ public class BlueMapIntegration {
             return false;
         }
         
+        String version = blueMapPlugin.getPluginMeta() != null ? 
+            blueMapPlugin.getPluginMeta().getVersion() : "unknown";
+        logger.debug(LogCategory.GENERAL, "BlueMap plugin found: " + blueMapPlugin.getName() + " v" + version);
+        
         if (!blueMapPlugin.isEnabled()) {
             logger.debug(LogCategory.GENERAL, "BlueMap plugin is not enabled");
             return false;
         }
         
-        logger.debug(LogCategory.GENERAL, "BlueMap plugin found, attempting to access API");
+        logger.debug(LogCategory.GENERAL, "BlueMap plugin is enabled, attempting to access API");
         
-        // Try to get BlueMap API using reflection
+            // Try to get BlueMap API using reflection
         try {
             // Try common API access patterns
             blueMapApi = getBlueMapApi(blueMapPlugin);
             
             if (blueMapApi == null) {
-                logger.warning("Could not access BlueMap API. Integration disabled.");
-                logger.warning("BlueMap API structure may have changed. Please check compatibility.");
+                logger.warning(LogCategory.GENERAL, "Could not access BlueMap API. Integration disabled.");
+                logger.warning(LogCategory.GENERAL, "BlueMap API structure may have changed. Please check compatibility.");
                 return false;
             }
             
-            // Try to get MarkerAPI
+            // Try to get MarkerAPI - try multiple approaches
             markerApi = getMarkerApi(blueMapApi);
             
+            // If that fails, try getting it directly from the plugin
             if (markerApi == null) {
-                logger.warning("Could not access BlueMap MarkerAPI. Integration disabled.");
+                logger.debug(LogCategory.GENERAL, "MarkerAPI not found via BlueMap API, trying direct plugin access...");
+                markerApi = getMarkerApiFromPlugin(blueMapPlugin);
+            }
+            
+            if (markerApi == null) {
+                logger.warning(LogCategory.GENERAL, "Could not access BlueMap MarkerAPI. Integration disabled.");
+                logger.warning(LogCategory.GENERAL, "Please check BlueMap version compatibility. BlueMap v5.15 may use a different API structure.");
                 return false;
             }
             
             // Initialize marker manager
+            logger.debug(LogCategory.GENERAL, "Initializing BlueMap marker manager...");
             if (markerManager.initialize(markerApi)) {
                 this.enabled = true;
-                logger.info("BlueMap integration enabled successfully");
+                logger.info(LogCategory.GENERAL, "BlueMap integration enabled successfully");
+                logger.debug(LogCategory.GENERAL, "BlueMap integration ready - markers will be created for villages");
                 return true;
             } else {
-                logger.warning("Failed to initialize BlueMap marker manager");
+                logger.warning(LogCategory.GENERAL, "Failed to initialize BlueMap marker manager");
                 return false;
             }
             
@@ -171,50 +190,166 @@ public class BlueMapIntegration {
      */
     private Object getMarkerApi(Object blueMapApi) {
         try {
+            logger.debug(LogCategory.GENERAL, "Attempting to access MarkerAPI from BlueMap API class: " + blueMapApi.getClass().getName());
+            
             // Try pattern 1: blueMapApi.getMarkerAPI()
             try {
+                logger.debug(LogCategory.GENERAL, "Trying getMarkerAPI() method...");
                 Method getMarkerAPI = blueMapApi.getClass().getMethod("getMarkerAPI");
                 Object result = getMarkerAPI.invoke(blueMapApi);
                 if (result != null) {
-                    logger.debug(LogCategory.GENERAL, "Found MarkerAPI via getMarkerAPI()");
+                    logger.debug(LogCategory.GENERAL, "Found MarkerAPI via getMarkerAPI() - class: " + result.getClass().getName());
                     return result;
                 }
-            } catch (NoSuchMethodException ignored) {
-                // Try next pattern
+                logger.debug(LogCategory.GENERAL, "getMarkerAPI() returned null");
+            } catch (NoSuchMethodException e) {
+                logger.debug(LogCategory.GENERAL, "getMarkerAPI() method not found");
             }
             
             // Try pattern 2: MarkerAPI.getInstance()
             try {
+                logger.debug(LogCategory.GENERAL, "Trying MarkerAPI.getInstance()...");
                 Class<?> markerApiClass = Class.forName("de.bluecolored.bluemap.api.markers.MarkerAPI");
                 Method getInstance = markerApiClass.getMethod("getInstance");
                 Object result = getInstance.invoke(null);
                 if (result != null) {
-                    logger.debug(LogCategory.GENERAL, "Found MarkerAPI via MarkerAPI.getInstance()");
+                    logger.debug(LogCategory.GENERAL, "Found MarkerAPI via MarkerAPI.getInstance() - class: " + result.getClass().getName());
                     return result;
                 }
-            } catch (ClassNotFoundException | NoSuchMethodException ignored) {
-                // Try next pattern
+                logger.debug(LogCategory.GENERAL, "MarkerAPI.getInstance() returned null");
+            } catch (ClassNotFoundException e) {
+                logger.debug(LogCategory.GENERAL, "MarkerAPI class not found: " + e.getMessage());
+            } catch (NoSuchMethodException e) {
+                logger.debug(LogCategory.GENERAL, "MarkerAPI.getInstance() method not found");
             }
             
-            // Try pattern 3: Access via API instance methods
+            // Try pattern 3: Access via API instance methods - search all methods
+            logger.debug(LogCategory.GENERAL, "Searching BlueMap API class for marker-related methods...");
             try {
+                List<Method> candidateMethods = new ArrayList<>();
                 for (Method method : blueMapApi.getClass().getMethods()) {
                     String methodName = method.getName().toLowerCase();
-                    if ((methodName.contains("marker") || methodName.contains("api")) && 
-                        method.getParameterCount() == 0) {
+                    String returnType = method.getReturnType().getName().toLowerCase();
+                    
+                    // Look for methods that might return MarkerAPI
+                    if (method.getParameterCount() == 0 && 
+                        (methodName.contains("marker") || 
+                         methodName.contains("api") ||
+                         returnType.contains("marker"))) {
+                        candidateMethods.add(method);
+                        logger.debug(LogCategory.GENERAL, "Found candidate method: " + method.getName() + 
+                            " -> " + method.getReturnType().getName());
+                    }
+                }
+                
+                // Try each candidate method
+                for (Method method : candidateMethods) {
+                    try {
+                        logger.debug(LogCategory.GENERAL, "Trying method: " + method.getName());
                         Object result = method.invoke(blueMapApi);
-                        if (result != null && result.getClass().getName().contains("Marker")) {
-                            logger.debug(LogCategory.GENERAL, "Found MarkerAPI via " + method.getName());
+                        if (result != null) {
+                            String className = result.getClass().getName();
+                            logger.debug(LogCategory.GENERAL, "Method " + method.getName() + " returned: " + className);
+                            if (className.contains("Marker") || className.contains("marker")) {
+                                logger.debug(LogCategory.GENERAL, "Found MarkerAPI via " + method.getName());
+                                return result;
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.debug(LogCategory.GENERAL, "Error invoking " + method.getName() + ": " + e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                logger.debug(LogCategory.GENERAL, "Error searching for marker methods: " + e.getMessage());
+            }
+            
+            // Try pattern 4: Check if MarkerAPI is a field
+            logger.debug(LogCategory.GENERAL, "Checking for MarkerAPI as a field...");
+            try {
+                for (java.lang.reflect.Field field : blueMapApi.getClass().getFields()) {
+                    if (field.getName().toLowerCase().contains("marker")) {
+                        logger.debug(LogCategory.GENERAL, "Found marker-related field: " + field.getName());
+                        Object result = field.get(blueMapApi);
+                        if (result != null) {
+                            logger.debug(LogCategory.GENERAL, "Field " + field.getName() + " contains: " + result.getClass().getName());
                             return result;
                         }
                     }
                 }
-            } catch (Exception ignored) {
-                // Continue
+            } catch (Exception e) {
+                logger.debug(LogCategory.GENERAL, "Error checking fields: " + e.getMessage());
+            }
+            
+            // Log all available methods for debugging
+            if (logger.isDebugEnabled()) {
+                logger.debug(LogCategory.GENERAL, "All methods on BlueMap API class:");
+                for (Method method : blueMapApi.getClass().getMethods()) {
+                    if (method.getParameterCount() == 0) {
+                        logger.debug(LogCategory.GENERAL, "  - " + method.getName() + "() -> " + method.getReturnType().getName());
+                    }
+                }
             }
             
         } catch (Exception e) {
-            logger.debug(LogCategory.GENERAL, "Error accessing MarkerAPI: " + e.getMessage());
+            logger.warning(LogCategory.GENERAL, "Error accessing MarkerAPI: " + e.getMessage());
+            if (logger.isDebugEnabled()) {
+                logger.warning(LogCategory.GENERAL, "MarkerAPI access error", e);
+            }
+        }
+        
+        logger.warning(LogCategory.GENERAL, "Could not find MarkerAPI - BlueMap API structure may differ from expected");
+        return null;
+    }
+    
+    /**
+     * Attempts to get MarkerAPI directly from the BlueMap plugin instance.
+     * This is an alternative approach for BlueMap versions that don't expose MarkerAPI through the main API.
+     * 
+     * @param blueMapPlugin The BlueMap plugin instance
+     * @return The MarkerAPI object, or null if not found
+     */
+    private Object getMarkerApiFromPlugin(Plugin blueMapPlugin) {
+        try {
+            logger.debug(LogCategory.GENERAL, "Trying to get MarkerAPI directly from BlueMap plugin: " + blueMapPlugin.getClass().getName());
+            
+            // Try to find MarkerAPI as a method on the plugin
+            for (Method method : blueMapPlugin.getClass().getMethods()) {
+                String methodName = method.getName().toLowerCase();
+                String returnType = method.getReturnType().getName().toLowerCase();
+                
+                if (method.getParameterCount() == 0 && 
+                    (methodName.contains("marker") || returnType.contains("marker"))) {
+                    try {
+                        logger.debug(LogCategory.GENERAL, "Trying plugin method: " + method.getName());
+                        Object result = method.invoke(blueMapPlugin);
+                        if (result != null && result.getClass().getName().contains("Marker")) {
+                            logger.debug(LogCategory.GENERAL, "Found MarkerAPI via plugin method " + method.getName());
+                            return result;
+                        }
+                    } catch (Exception e) {
+                        logger.debug(LogCategory.GENERAL, "Error invoking " + method.getName() + ": " + e.getMessage());
+                    }
+                }
+            }
+            
+            // Try to find MarkerAPI as a field on the plugin
+            try {
+                for (java.lang.reflect.Field field : blueMapPlugin.getClass().getDeclaredFields()) {
+                    if (field.getType().getName().contains("Marker")) {
+                        field.setAccessible(true);
+                        Object result = field.get(blueMapPlugin);
+                        if (result != null) {
+                            logger.debug(LogCategory.GENERAL, "Found MarkerAPI via plugin field " + field.getName());
+                            return result;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.debug(LogCategory.GENERAL, "Error checking plugin fields: " + e.getMessage());
+            }
+            
+        } catch (Exception e) {
+            logger.debug(LogCategory.GENERAL, "Error accessing MarkerAPI from plugin: " + e.getMessage());
         }
         
         return null;
@@ -225,9 +360,12 @@ public class BlueMapIntegration {
      */
     public void shutdown() {
         if (enabled) {
+            logger.debug(LogCategory.GENERAL, "Shutting down BlueMap integration...");
             markerManager.shutdown();
             enabled = false;
-            logger.debug(LogCategory.GENERAL, "BlueMap integration shut down");
+            logger.info(LogCategory.GENERAL, "BlueMap integration shut down");
+        } else {
+            logger.debug(LogCategory.GENERAL, "BlueMap integration was not enabled, skipping shutdown");
         }
     }
     
@@ -272,11 +410,17 @@ public class BlueMapIntegration {
      * Reinitializes if needed.
      */
     public void reload() {
+        logger.debug(LogCategory.GENERAL, "Reloading BlueMap integration configuration...");
         if (enabled) {
+            logger.debug(LogCategory.GENERAL, "BlueMap integration is enabled, reloading marker manager");
             markerManager.reload();
+            logger.info(LogCategory.GENERAL, "BlueMap integration configuration reloaded");
         } else {
             // Try to initialize if it wasn't enabled before
-            initialize();
+            logger.debug(LogCategory.GENERAL, "BlueMap integration was not enabled, attempting initialization");
+            if (initialize()) {
+                logger.info(LogCategory.GENERAL, "BlueMap integration enabled after reload");
+            }
         }
     }
 }

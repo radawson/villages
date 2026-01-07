@@ -150,16 +150,30 @@ public class VillagesPlugin extends JavaPlugin {
         }
         
         // Initialize BlueMap integration (soft dependency)
+        // Note: BlueMap may load after Villages, so we use delayed initialization
         this.blueMapIntegration = new BlueMapIntegration(this);
-        if (blueMapIntegration.initialize()) {
-            pluginLogger.info("BlueMap integration enabled");
-        } else {
-            pluginLogger.debug(LogCategory.GENERAL, "BlueMap integration not available (plugin not installed or disabled)");
-        }
+        initializeBlueMapIntegration();
         
         // ===== Phase 5: Event Listeners =====
         this.chunkListener = new VillageChunkListener(villageManager, signManager, this);
         getServer().getPluginManager().registerEvents(chunkListener, this);
+        
+        // Register plugin enable listener for BlueMap (in case it loads after us)
+        VillagesPlugin pluginInstance = this;
+        getServer().getPluginManager().registerEvents(new org.bukkit.event.Listener() {
+            @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.MONITOR)
+            public void onPluginEnable(org.bukkit.event.server.PluginEnableEvent event) {
+                if (event.getPlugin().getName().equals("BlueMap") && blueMapIntegration != null && !blueMapIntegration.isEnabled()) {
+                    pluginLogger.debug(LogCategory.GENERAL, "BlueMap plugin enabled, attempting to initialize integration");
+                    getServer().getScheduler().runTaskLater(pluginInstance, () -> {
+                        if (blueMapIntegration.initialize()) {
+                            pluginLogger.info(LogCategory.GENERAL, "BlueMap integration enabled (delayed initialization)");
+                        }
+                    }, 20L); // Wait 1 second for BlueMap to fully initialize
+                }
+            }
+        }, this);
+        
         pluginLogger.debug(LogCategory.GENERAL, "Event listeners registered");
         
         // ===== Phase 6: Commands =====
@@ -368,5 +382,30 @@ public class VillagesPlugin extends JavaPlugin {
      */
     public BlueMapIntegration getBlueMapIntegration() {
         return blueMapIntegration;
+    }
+    
+    /**
+     * Initializes BlueMap integration with delayed retry if BlueMap isn't loaded yet.
+     * This handles the case where BlueMap loads after Villages.
+     */
+    private void initializeBlueMapIntegration() {
+        // Try immediate initialization
+        if (blueMapIntegration.initialize()) {
+            pluginLogger.info(LogCategory.GENERAL, "BlueMap integration enabled");
+            return;
+        }
+        
+        // If BlueMap isn't available yet, try again after a delay
+        // This handles the case where BlueMap loads after Villages
+        getServer().getScheduler().runTaskLater(this, () -> {
+            if (!blueMapIntegration.isEnabled()) {
+                pluginLogger.debug(LogCategory.GENERAL, "Retrying BlueMap integration initialization (delayed)");
+                if (blueMapIntegration.initialize()) {
+                    pluginLogger.info(LogCategory.GENERAL, "BlueMap integration enabled (delayed initialization)");
+                } else {
+                    pluginLogger.debug(LogCategory.GENERAL, "BlueMap integration not available (plugin not installed or disabled)");
+                }
+            }
+        }, 40L); // Wait 2 seconds for BlueMap to load
     }
 }

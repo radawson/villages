@@ -28,19 +28,19 @@ The Villages plugin provides comprehensive village management for Minecraft serv
 │                           (Main Plugin Class)                                │
 └─────────────────┬───────────────────────────────────────────────────────────┘
                   │
-    ┌─────────────┼─────────────┬──────────────┬──────────────┬──────────────┐
-    │             │             │              │              │              │
-    ▼             ▼             ▼              ▼              ▼              ▼
-┌─────────┐ ┌──────────┐ ┌───────────┐ ┌────────────┐ ┌────────────┐ ┌────────┐
-│ Config  │ │ Plugin   │ │ Storage   │ │  Region    │ │ Detection  │ │Commands│
-│ Manager │ │ Logger   │ │ Manager   │ │  Manager   │ │  System    │ │        │
-└────┬────┘ └────┬─────┘ └─────┬─────┘ └─────┬──────┘ └─────┬──────┘ └────────┘
-     │           │             │             │              │
-     │           │             ▼             ▼              ▼
-     │           │       ┌─────────┐  ┌───────────┐  ┌─────────────┐
-     │           │       │Provider │  │ Provider  │  │ Entrance    │
-     │           │       │Interface│  │ Interface │  │ Detector    │
-     │           │       └────┬────┘  └─────┬─────┘  │ & Marker    │
+    ┌─────────────┼─────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
+    │             │             │              │              │              │              │
+    ▼             ▼             ▼              ▼              ▼              ▼              ▼
+┌─────────┐ ┌──────────┐ ┌───────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────┐
+│ Config  │ │ Plugin   │ │ Storage   │ │  Region    │ │ Detection  │ │ BlueMap    │ │Commands│
+│ Manager │ │ Logger   │ │ Manager   │ │  Manager   │ │  System    │ │Integration│ │        │
+└────┬────┘ └────┬─────┘ └─────┬─────┘ └─────┬──────┘ └─────┬──────┘ └─────┬──────┘ └────────┘
+     │           │             │             │              │              │
+     │           │             ▼             ▼              ▼              ▼
+     │           │       ┌─────────┐  ┌───────────┐  ┌─────────────┐ ┌──────────────┐
+     │           │       │Provider │  │ Provider  │  │ Entrance    │ │   Marker     │
+     │           │       │Interface│  │ Interface │  │ Detector    │ │  Manager     │
+     │           │       └────┬────┘  └─────┬─────┘  │ & Marker    │ └──────────────┘
      │           │            │             │        └──────┬──────┘
      │           │    ┌───────┼───────┐     │               │
      │           │    ▼       ▼       ▼     ▼               ▼
@@ -201,6 +201,20 @@ Located in `org.clockworx.villages.commands`:
 - **VillageCommands** - Extended command handler using CommandAPI
 - Subcommands for: name, info, border, entrance, region, admin
 
+### BlueMap Integration
+
+Located in `org.clockworx.villages.integration`:
+
+- **BlueMapIntegration** - Main integration class using reflection to access BlueMap API
+- **BlueMapMarkerManager** - Manages POI and shape markers for villages
+- **BoundaryToPolygonConverter** - Converts village boundaries to polygon coordinates
+
+Features:
+- Reflection-based API access (no compile-time dependency)
+- Automatic marker creation/updates/deletion
+- Configurable icons, colors, and visibility
+- Graceful degradation if BlueMap is not installed
+
 ## Data Flow
 
 ### Village Detection Flow
@@ -309,6 +323,7 @@ All debug settings can be changed at runtime via `/village debug` commands.
 - WorldGuard 7.0.9+
 - WorldEdit 7.3.0+
 - RegionGuard (version TBD)
+- BlueMap (any version - integration uses reflection)
 
 ### Shaded
 - SQLite JDBC 3.45.1
@@ -327,7 +342,7 @@ The plugin uses Paper's plugin system features:
 ### Plugin Configuration
 - Uses `paper-plugin.yml` for dependency management
 - Supports `load: BEFORE/AFTER` for load order control
-- Declares soft dependencies for WorldGuard, WorldEdit, RegionGuard
+- Declares soft dependencies for WorldGuard, WorldEdit, RegionGuard, BlueMap
 
 ## Threading Model
 

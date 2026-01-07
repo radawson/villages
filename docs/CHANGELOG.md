@@ -5,6 +5,53 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - BlueMap Integration
+
+### Added
+
+#### BlueMap Integration
+- **Automatic marker creation** - Villages automatically appear on BlueMap web interface
+- **POI markers** - Village icons with names at village centers
+- **Shape markers** - Optional polygon outlines showing village boundaries
+- **Reflection-based API access** - Works with any BlueMap version without compile-time dependency
+- **Automatic updates** - Markers update when villages are renamed or boundaries change
+- **Graceful degradation** - Plugin works normally if BlueMap is not installed
+
+#### Configuration Options
+New `bluemap` section in `config.yml`:
+```yaml
+bluemap:
+  enabled: true
+  icon: "assets/village-icon.png"
+  show-boundaries: true
+  boundary-color: "#FF6B00"
+  boundary-opacity: 0.3
+  marker-set-label: "Villages"
+```
+
+#### New Classes
+- `org.clockworx.villages.integration.BlueMapIntegration` - Main integration class
+- `org.clockworx.villages.integration.BlueMapMarkerManager` - Marker management
+- `org.clockworx.villages.integration.BoundaryToPolygonConverter` - Boundary conversion utility
+
+#### Documentation
+- `docs/BLUEMAP.md` - Complete BlueMap integration guide
+- Updated architecture documentation with BlueMap integration
+- Updated installation guide with BlueMap requirements
+
+### Changed
+- `VillageManager` now notifies BlueMap integration when villages are created, updated, or deleted
+- `VillagesPlugin` initializes BlueMap integration on startup
+- Configuration reload now includes BlueMap integration reload
+
+### Technical Details
+- Uses Java reflection to access BlueMap API at runtime
+- No compile-time dependency on BlueMap API
+- Marker operations performed asynchronously
+- Comprehensive logging for debugging integration issues
+
+---
+
 ## [0.2.3] - File Logging
 
 ### Added
