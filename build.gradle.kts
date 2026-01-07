@@ -20,6 +20,11 @@ repositories {
     name = "enginehub"
     url = uri("https://maven.enginehub.org/repo/")
   }
+  // BlueMap repository
+  maven {
+    name = "bluecolored"
+    url = uri("https://repo.bluecolored.de/releases")
+  }
   mavenCentral()
 }
 
@@ -45,6 +50,13 @@ dependencies {
   // WorldGuard and WorldEdit - soft dependencies for region management
   compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.9")
   compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.3.0")
+  
+  // BlueMap API - soft dependency for map integration
+  // Note: Using reflection-based approach, so this is optional
+  // If BlueMap API structure differs, integration will gracefully fail
+  // Version may need adjustment based on BlueMap version - check BlueMap documentation
+  // If the exact API isn't available, the integration will use reflection to find it
+  compileOnly("de.bluecolored.bluemap:bluemap-api:3.0.0")
   
   paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
 }

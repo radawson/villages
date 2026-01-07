@@ -11,6 +11,7 @@ import org.clockworx.villages.detection.EntranceMarker;
 import org.clockworx.villages.listeners.VillageChunkListener;
 import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.managers.VillageManager;
+import org.clockworx.villages.integration.BlueMapIntegration;
 import org.clockworx.villages.regions.RegionManager;
 import org.clockworx.villages.signs.WelcomeSignPlacer;
 import org.clockworx.villages.storage.StorageManager;
@@ -70,6 +71,9 @@ public class VillagesPlugin extends JavaPlugin {
     
     // Listeners
     private VillageChunkListener chunkListener;
+    
+    // Integrations
+    private BlueMapIntegration blueMapIntegration;
     
     /**
      * Called when the plugin is loaded (before onEnable).
@@ -145,6 +149,14 @@ public class VillagesPlugin extends JavaPlugin {
             pluginLogger.warning("Failed to initialize region manager: " + e.getMessage());
         }
         
+        // Initialize BlueMap integration (soft dependency)
+        this.blueMapIntegration = new BlueMapIntegration(this);
+        if (blueMapIntegration.initialize()) {
+            pluginLogger.info("BlueMap integration enabled");
+        } else {
+            pluginLogger.debug(LogCategory.GENERAL, "BlueMap integration not available (plugin not installed or disabled)");
+        }
+        
         // ===== Phase 5: Event Listeners =====
         this.chunkListener = new VillageChunkListener(villageManager, signManager, this);
         getServer().getPluginManager().registerEvents(chunkListener, this);
@@ -215,6 +227,11 @@ public class VillagesPlugin extends JavaPlugin {
             }
         }
         
+        // Shutdown BlueMap integration
+        if (blueMapIntegration != null) {
+            blueMapIntegration.shutdown();
+        }
+        
         // Unregister CommandAPI commands
         CommandAPI.onDisable();
         
@@ -242,6 +259,9 @@ public class VillagesPlugin extends JavaPlugin {
         }
         if (welcomeSignPlacer != null) {
             welcomeSignPlacer.reload();
+        }
+        if (blueMapIntegration != null) {
+            blueMapIntegration.reload();
         }
         
         if (pluginLogger != null) {
@@ -339,5 +359,14 @@ public class VillagesPlugin extends JavaPlugin {
      */
     public WelcomeSignPlacer getWelcomeSignPlacer() {
         return welcomeSignPlacer;
+    }
+    
+    /**
+     * Gets the BlueMapIntegration instance.
+     * 
+     * @return The BlueMapIntegration, or null if not initialized
+     */
+    public BlueMapIntegration getBlueMapIntegration() {
+        return blueMapIntegration;
     }
 }

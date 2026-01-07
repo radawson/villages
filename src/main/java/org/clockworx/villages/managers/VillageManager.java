@@ -122,6 +122,11 @@ public class VillageManager {
         // Cache UUID in PDC
         setUuidInPdc(bellBlock, newUuid);
         
+        // Notify BlueMap integration (if enabled)
+        if (plugin.getBlueMapIntegration() != null && plugin.getBlueMapIntegration().isEnabled()) {
+            plugin.getBlueMapIntegration().getMarkerManager().createVillageMarkers(village);
+        }
+        
         logger.info(LogCategory.GENERAL, "Created new village " + newUuid + " at " + bellBlock.getLocation());
         
         return village;
@@ -191,6 +196,32 @@ public class VillageManager {
     }
     
     /**
+     * Deletes a village from storage and removes associated markers.
+     * 
+     * @param villageId The UUID of the village to delete
+     * @return true if the village was deleted, false if not found
+     */
+    public boolean deleteVillage(UUID villageId) {
+        logger.debug(LogCategory.GENERAL, "deleteVillage called for village " + villageId);
+        
+        // Notify BlueMap integration before deletion (if enabled)
+        if (plugin.getBlueMapIntegration() != null && plugin.getBlueMapIntegration().isEnabled()) {
+            plugin.getBlueMapIntegration().getMarkerManager().removeVillageMarkers(villageId);
+        }
+        
+        // Delete from storage
+        boolean deleted = storageManager.deleteVillage(villageId).join();
+        
+        if (deleted) {
+            logger.info(LogCategory.GENERAL, "Deleted village " + villageId);
+        } else {
+            logger.debug(LogCategory.GENERAL, "Village " + villageId + " not found for deletion");
+        }
+        
+        return deleted;
+    }
+    
+    /**
      * Recalculates the boundary for a village.
      * 
      * @param village The village to recalculate
@@ -207,6 +238,12 @@ public class VillageManager {
             logger.warning(LogCategory.GENERAL, "Boundary calculation returned null for village " + village.getId());
         }
         saveVillageAsync(village);
+        
+        // Notify BlueMap integration (if enabled)
+        if (plugin.getBlueMapIntegration() != null && plugin.getBlueMapIntegration().isEnabled()) {
+            plugin.getBlueMapIntegration().getMarkerManager().updateVillageMarkers(village);
+        }
+        
         return village;
     }
     
@@ -220,6 +257,12 @@ public class VillageManager {
         logger.debug(LogCategory.GENERAL, "setVillageName called for village " + village.getId() + " with name: " + name);
         village.setName(name);
         saveVillageAsync(village);
+        
+        // Notify BlueMap integration (if enabled)
+        if (plugin.getBlueMapIntegration() != null && plugin.getBlueMapIntegration().isEnabled()) {
+            plugin.getBlueMapIntegration().getMarkerManager().updateVillageMarkers(village);
+        }
+        
         logger.info(LogCategory.GENERAL, "Named village " + village.getId() + " to: " + name);
     }
     
