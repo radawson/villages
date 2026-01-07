@@ -5,7 +5,7 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.3]
 
 ### Added
 - Village naming feature via `/village name <name>` command
@@ -56,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When a new bell is placed in a chunk with an existing UUID, the UUID is restored to the bell's PDC
 - Dual storage system: PDC (on bell) + File storage (by chunk) ensures maximum persistence
 
-## [1.0.0] - Initial Release
+## [0.1.0] - Initial Release
 
 ### Added
 - Automatic village detection when chunks load
