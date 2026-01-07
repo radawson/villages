@@ -35,6 +35,9 @@ tmp/
 *~.nib
 local.properties
 
+# VSCode
+.vscode/
+
 # NetBeans
 nbproject/private/
 nbbuild/
