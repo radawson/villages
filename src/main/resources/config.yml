@@ -1,0 +1,146 @@
+# Villages Plugin Configuration
+# Version: ${version}
+
+# =============================================================================
+# Storage Configuration
+# =============================================================================
+# The Villages plugin supports multiple storage backends for village data.
+# Choose the one that best fits your server's needs.
+debug: false
+storage:
+  # Storage type: yaml, sqlite, or mysql
+  # - yaml: Simple file-based storage. Human-readable, good for small servers.
+  # - sqlite: Embedded database. Recommended for most servers. No setup required.
+  # - mysql: Network database. Best for multi-server networks or large deployments.
+  type: sqlite
+  
+  # SQLite settings (used when type: sqlite)
+  sqlite:
+    # Database file name (stored in plugins/Villages/)
+    file: villages.db
+  
+  # MySQL settings (used when type: mysql)
+  mysql:
+  # Table prefix for shared databases (optional, default: empty)
+      # Useful when multiple plugins share the same database
+      # Example: "villages_" would create tables like "villages_villages", "villages_schema_version"
+      prefix: ""
+    host: localhost
+    port: 3306
+    database: villages
+    username: minecraft
+    password: ""
+    # Connection pool size (number of connections to maintain)
+    pool-size: 10
+
+# =============================================================================
+# Region Integration
+# =============================================================================
+# Configure integration with region management plugins.
+# Regions are created to protect villages and enable area-based features.
+
+regions:
+  # Enable automatic region creation when villages are detected
+  auto-create: false
+  
+  # Preferred region plugin: worldguard, regionguard, or auto (first available)
+  provider: auto
+  
+  # Default flags to apply to new village regions
+  # These are WorldGuard flag names - adjust based on your region plugin
+  default-flags:
+    # Prevent mob griefing (creeper explosions, enderman block pickup)
+    mob-griefing: deny
+    # Allow PvP in villages (set to deny to disable)
+    pvp: allow
+    # Greeting message when entering village
+    greeting: "&aWelcome to %village_name%!"
+    # Farewell message when leaving village
+    farewell: "&7Leaving %village_name%..."
+
+# =============================================================================
+# Village Detection
+# =============================================================================
+# Settings for how villages are detected and their boundaries calculated.
+
+detection:
+  # Automatically detect villages when chunks load
+  auto-detect: true
+  
+  # Recalculate village boundaries periodically (in ticks, 0 to disable)
+  # 72000 ticks = 1 hour
+  recalculate-interval: 72000
+  
+  # Minimum distance between village bells to be considered separate villages
+  # Based on Minecraft mechanics: villages must be 97+ blocks apart
+  min-village-distance: 97
+
+# =============================================================================
+# Entrance Detection
+# =============================================================================
+# Settings for detecting road entrances to villages.
+
+entrances:
+  # Enable automatic entrance detection at village boundaries
+  auto-detect: true
+  
+  # Block types considered as paths/roads for entrance detection
+  path-blocks:
+    - DIRT_PATH
+    - GRASS_PATH
+    - COBBLESTONE
+    - STONE
+    - STONE_BRICKS
+    - GRAVEL
+  
+  # Minimum path width to be considered an entrance (in blocks)
+  min-path-width: 2
+
+# =============================================================================
+# Welcome Signs
+# =============================================================================
+# Settings for welcome signs placed at village entrances.
+
+signs:
+  # Enable automatic welcome sign placement at entrances
+  auto-place: true
+  
+  # Sign material (wood type)
+  material: OAK_WALL_SIGN
+  
+  # Sign text lines (use %village_name% placeholder)
+  lines:
+    - "Welcome to"
+    - "%village_name%"
+    - "---"
+    - ""
+
+# =============================================================================
+# Performance
+# =============================================================================
+# Settings that affect plugin performance.
+
+performance:
+  # Cache village data in memory for faster lookups
+  enable-cache: true
+  
+  # Maximum villages to cache (0 for unlimited)
+  cache-size: 1000
+  
+  # Run storage operations asynchronously (recommended)
+  async-storage: true
+
+# =============================================================================
+# Debug
+# =============================================================================
+# Settings for debugging and development.
+
+debug:
+  # Enable verbose logging
+  verbose: false
+  
+  # Log storage operations
+  log-storage: false
+  
+  # Log region operations
+  log-regions: false

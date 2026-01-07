@@ -15,6 +15,11 @@ repositories {
     name = "hangar"
     url = uri("https://maven.papermc.io/repository/maven-public/")
   }
+  // WorldGuard and WorldEdit repositories
+  maven {
+    name = "enginehub"
+    url = uri("https://maven.enginehub.org/repo/")
+  }
   mavenCentral()
 }
 
@@ -27,6 +32,19 @@ dependencies {
   // Once 11.1.0 is available in Maven, this can be changed to:
   // implementation("dev.jorel:commandapi-bukkit-shade:11.1.0")
   implementation(files("libs/commandapi-bukkit-shade-11.1.0.jar"))
+  
+  // SQLite JDBC driver - embedded database, no external server needed
+  implementation("org.xerial:sqlite-jdbc:3.45.1.0")
+  
+  // HikariCP - high-performance connection pooling for MySQL
+  implementation("com.zaxxer:HikariCP:5.1.0")
+  
+  // MySQL connector - only loaded if MySQL is configured (compileOnly to reduce JAR size)
+  compileOnly("com.mysql:mysql-connector-j:8.3.0")
+  
+  // WorldGuard and WorldEdit - soft dependencies for region management
+  compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.9")
+  compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.3.0")
   
   paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
 }

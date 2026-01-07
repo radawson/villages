@@ -5,6 +5,95 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - Major Architecture Update
+
+### Added
+
+#### Storage System
+- **StorageProvider interface** - Abstraction layer for multiple storage backends
+- **SQLiteStorageProvider** - Embedded database storage (recommended default)
+- **MySQLStorageProvider** - Network database for multi-server deployments
+- **YamlStorageProvider** - Refactored file-based storage
+- **StorageManager** - Manages provider lifecycle and data migration
+- Storage configuration in `config.yml` for backend selection and connection settings
+- `/village migrate <from> <to>` command for data migration between backends
+- `/village backup` command for creating storage backups
+
+#### Village Boundary System
+- **VillageBoundaryCalculator** - NMS-based POI scanning for accurate boundaries
+- Implements Minecraft's village expansion rules (32H/52V)
+- Calculates bounding box from connected POIs (beds, bells, job sites)
+- `/village border show [duration]` - Visualize village boundary with particles
+- `/village border recalculate` - Force boundary recalculation
+
+#### Data Models
+- **Village** - Comprehensive village data model with UUID, name, boundary, POIs, entrances
+- **VillageBoundary** - Axis-aligned bounding box with center calculation
+- **VillagePoi** - Point of Interest representation
+- **VillageEntrance** - Entry point with facing direction and auto-detection flag
+
+#### Region Integration
+- **RegionProvider interface** - Abstraction for region plugins
+- **WorldGuardProvider** - Full WorldGuard API integration
+- **RegionGuardProvider** - Alternative lightweight provider
+- **RegionManager** - Detects available plugins and routes operations
+- `/village region create` - Create protected region matching village boundary
+- `/village region delete` - Remove village region
+- `/village region flags [flag] [value]` - View/set region flags
+- Default flag configuration in `config.yml`
+
+#### Entrance Detection
+- **EntranceDetector** - Automatic road entrance detection at village boundaries
+- Scans for path blocks (DIRT_PATH, COBBLESTONE, etc.)
+- Configurable path materials and minimum path width
+- **EntranceMarker** - Manual entrance marking via commands
+- `/village entrance add` - Mark current location as entrance
+- `/village entrance remove` - Remove nearest entrance
+- `/village entrance list` - List all entrances
+- `/village entrance detect` - Run automatic detection
+
+#### Welcome Signs
+- **WelcomeSignPlacer** - Places welcome signs at village entrances
+- Configurable sign text with `%village_name%` placeholder
+- Non-destructive placement (only replaces air/vegetation)
+- Auto-placement when entrances are detected or marked
+
+#### Commands
+- Extended `/village` command with subcommand structure
+- `/village reload` - Reload configuration
+- New permissions for all features
+
+#### Documentation
+- `docs/ARCHITECTURE.md` - System architecture overview
+- `docs/REGIONS.md` - Region integration guide
+- `docs/INSTALLATION.md` - Installation and configuration guide
+- Updated `docs/CHANGELOG.md` with this version
+
+### Changed
+- Complete storage system rewrite from chunk-based to village-centric model
+- Storage now persists full village data (boundary, POIs, entrances, region ID)
+- Configuration file expanded with new sections for storage, regions, entrances, signs
+- Build system updated with new dependencies (SQLite, HikariCP, WorldGuard/WorldEdit)
+
+### Technical Details
+
+#### NMS Access
+- Uses paperweight-userdev for mapped NMS access
+- Accesses PoiManager for native POI data
+- Compatible with Paper's mojang-mapped environment
+
+#### Dependencies Added
+- `org.xerial:sqlite-jdbc:3.45.1.0` - SQLite driver
+- `com.zaxxer:HikariCP:5.1.0` - Connection pooling for MySQL
+- `com.sk89q.worldguard:worldguard-bukkit:7.0.9` - Region integration (compileOnly)
+- `com.sk89q.worldedit:worldedit-bukkit:7.3.0` - WorldGuard dependency (compileOnly)
+
+#### Database Schema
+- `villages` table with boundary, region, and timestamp columns
+- `village_pois` table for POI storage
+- `village_entrances` table for entrance points
+- Indexed for efficient queries
+
 ## [0.1.3]
 
 ### Added

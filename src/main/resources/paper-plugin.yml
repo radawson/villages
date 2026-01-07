@@ -1,5 +1,18 @@
 name: Villages
 version: ${version}
 main: org.clockworx.villages.VillagesPlugin
-description: Paper Enhanced Villages
+description: Paper Enhanced Villages - Boundary calculation, region protection, welcome signs
 api-version: '1.21.11'
+
+# Soft dependencies - these plugins are optional but enhanced if present
+dependencies:
+  server:
+    WorldGuard:
+      load: BEFORE
+      required: false
+    WorldEdit:
+      load: BEFORE
+      required: false
+    RegionGuard:
+      load: BEFORE
+      required: false
