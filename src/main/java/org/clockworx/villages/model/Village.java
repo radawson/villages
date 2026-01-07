@@ -20,6 +20,8 @@ import java.util.UUID;
  * - List of POIs (beds, job sites, etc.) within the village
  * - Entrance points for welcome sign placement
  * - Optional region ID if registered with WorldGuard/RegionGuard
+ * - Leadership: mayor and council members
+ * - Heroes who have defended the village from raids
  * 
  * This class serves as the primary data model for village persistence
  * and is used by all storage providers (YAML, SQLite, MySQL).
@@ -59,6 +61,15 @@ public class Village {
     /** Region ID if registered with WorldGuard/RegionGuard */
     private String regionId;
     
+    /** UUID of the village mayor (player who claimed leadership) */
+    private UUID mayorId;
+    
+    /** List of council member UUIDs (players with elevated permissions) */
+    private final List<UUID> councilMembers;
+    
+    /** List of heroes who have defended the village from raids */
+    private final List<VillageHero> heroes;
+    
     /** Timestamp when the village was first detected */
     private final Instant createdAt;
     
@@ -82,6 +93,8 @@ public class Village {
         this.bellZ = bellZ;
         this.pois = new ArrayList<>();
         this.entrances = new ArrayList<>();
+        this.councilMembers = new ArrayList<>();
+        this.heroes = new ArrayList<>();
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
     }
@@ -112,12 +125,14 @@ public class Village {
      * @param bellZ Bell Z coordinate
      * @param boundary Village boundary (may be null)
      * @param regionId Region ID (may be null)
+     * @param mayorId Mayor UUID (may be null)
      * @param createdAt Creation timestamp
      * @param updatedAt Last update timestamp
      */
     public Village(UUID id, String worldName, String name, 
                    int bellX, int bellY, int bellZ,
                    VillageBoundary boundary, String regionId,
+                   UUID mayorId,
                    Instant createdAt, Instant updatedAt) {
         this.id = Objects.requireNonNull(id, "Village ID cannot be null");
         this.worldName = Objects.requireNonNull(worldName, "World name cannot be null");
@@ -127,8 +142,11 @@ public class Village {
         this.bellZ = bellZ;
         this.boundary = boundary;
         this.regionId = regionId;
+        this.mayorId = mayorId;
         this.pois = new ArrayList<>();
         this.entrances = new ArrayList<>();
+        this.councilMembers = new ArrayList<>();
+        this.heroes = new ArrayList<>();
         this.createdAt = createdAt != null ? createdAt : Instant.now();
         this.updatedAt = updatedAt != null ? updatedAt : Instant.now();
     }
@@ -289,6 +307,42 @@ public class Village {
     }
     
     /**
+     * Gets the UUID of the village mayor.
+     * 
+     * @return The mayor's UUID, or null if no mayor is set
+     */
+    public UUID getMayorId() {
+        return mayorId;
+    }
+    
+    /**
+     * Checks if this village has a mayor.
+     * 
+     * @return true if a mayor is set
+     */
+    public boolean hasMayor() {
+        return mayorId != null;
+    }
+    
+    /**
+     * Gets the list of council member UUIDs.
+     * 
+     * @return Unmodifiable list of council member UUIDs
+     */
+    public List<UUID> getCouncilMembers() {
+        return List.copyOf(councilMembers);
+    }
+    
+    /**
+     * Gets the list of heroes who have defended this village.
+     * 
+     * @return Unmodifiable list of heroes
+     */
+    public List<VillageHero> getHeroes() {
+        return List.copyOf(heroes);
+    }
+    
+    /**
      * Gets the timestamp when this village was first detected.
      * 
      * @return Creation timestamp
@@ -336,6 +390,204 @@ public class Village {
     public void setRegionId(String regionId) {
         this.regionId = regionId;
         touch();
+    }
+    
+    /**
+     * Sets the mayor for this village.
+     * 
+     * @param mayorId The mayor's UUID, or null to clear
+     */
+    public void setMayorId(UUID mayorId) {
+        this.mayorId = mayorId;
+        touch();
+    }
+    
+    // ==================== Council Management ====================
+    
+    /**
+     * Adds a player to the village council.
+     * 
+     * @param playerId The player's UUID
+     * @return true if added, false if already a council member
+     */
+    public boolean addCouncilMember(UUID playerId) {
+        if (playerId != null && !councilMembers.contains(playerId)) {
+            councilMembers.add(playerId);
+            touch();
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * Removes a player from the village council.
+     * 
+     * @param playerId The player's UUID
+     * @return true if removed, false if not a council member
+     */
+    public boolean removeCouncilMember(UUID playerId) {
+        boolean removed = councilMembers.remove(playerId);
+        if (removed) {
+            touch();
+        }
+        return removed;
+    }
+    
+    /**
+     * Checks if a player is a council member.
+     * 
+     * @param playerId The player's UUID
+     * @return true if the player is a council member
+     */
+    public boolean isCouncilMember(UUID playerId) {
+        return playerId != null && councilMembers.contains(playerId);
+    }
+    
+    /**
+     * Clears all council members.
+     */
+    public void clearCouncil() {
+        if (!councilMembers.isEmpty()) {
+            councilMembers.clear();
+            touch();
+        }
+    }
+    
+    /**
+     * Sets all council members, replacing existing ones.
+     * 
+     * @param members The council member UUIDs
+     */
+    public void setCouncilMembers(List<UUID> members) {
+        councilMembers.clear();
+        if (members != null) {
+            councilMembers.addAll(members);
+        }
+        touch();
+    }
+    
+    /**
+     * Checks if a player has leadership status (mayor or council).
+     * 
+     * @param playerId The player's UUID
+     * @return true if the player is mayor or council member
+     */
+    public boolean isLeader(UUID playerId) {
+        if (playerId == null) return false;
+        return playerId.equals(mayorId) || councilMembers.contains(playerId);
+    }
+    
+    // ==================== Hero Management ====================
+    
+    /**
+     * Adds or updates a hero record for a player.
+     * If the player is already a hero, increments their defense count.
+     * 
+     * @param playerId The player's UUID
+     * @param raidLevel The raid level defended (1-5)
+     */
+    public void recordHeroDefense(UUID playerId, int raidLevel) {
+        if (playerId == null) return;
+        
+        // Check if player is already a hero
+        for (int i = 0; i < heroes.size(); i++) {
+            VillageHero existing = heroes.get(i);
+            if (existing.playerId().equals(playerId)) {
+                // Update existing hero
+                heroes.set(i, existing.withAdditionalDefense(raidLevel));
+                touch();
+                return;
+            }
+        }
+        
+        // New hero
+        heroes.add(VillageHero.firstDefense(playerId, raidLevel));
+        touch();
+    }
+    
+    /**
+     * Adds a hero record directly (used when loading from storage).
+     * 
+     * @param hero The hero record to add
+     */
+    public void addHero(VillageHero hero) {
+        if (hero != null && !heroes.contains(hero)) {
+            heroes.add(hero);
+            touch();
+        }
+    }
+    
+    /**
+     * Removes a hero record.
+     * 
+     * @param playerId The player's UUID
+     * @return true if the hero was removed
+     */
+    public boolean removeHero(UUID playerId) {
+        boolean removed = heroes.removeIf(h -> h.playerId().equals(playerId));
+        if (removed) {
+            touch();
+        }
+        return removed;
+    }
+    
+    /**
+     * Gets a hero record by player UUID.
+     * 
+     * @param playerId The player's UUID
+     * @return The hero record, or null if not found
+     */
+    public VillageHero getHero(UUID playerId) {
+        return heroes.stream()
+            .filter(h -> h.playerId().equals(playerId))
+            .findFirst()
+            .orElse(null);
+    }
+    
+    /**
+     * Checks if a player is a hero of this village.
+     * 
+     * @param playerId The player's UUID
+     * @return true if the player has defended this village
+     */
+    public boolean isHero(UUID playerId) {
+        return playerId != null && heroes.stream().anyMatch(h -> h.playerId().equals(playerId));
+    }
+    
+    /**
+     * Clears all hero records.
+     */
+    public void clearHeroes() {
+        if (!heroes.isEmpty()) {
+            heroes.clear();
+            touch();
+        }
+    }
+    
+    /**
+     * Sets all heroes, replacing existing ones.
+     * 
+     * @param newHeroes The hero records
+     */
+    public void setHeroes(List<VillageHero> newHeroes) {
+        heroes.clear();
+        if (newHeroes != null) {
+            heroes.addAll(newHeroes);
+        }
+        touch();
+    }
+    
+    /**
+     * Gets the top heroes sorted by defense count.
+     * 
+     * @param limit Maximum number of heroes to return
+     * @return List of heroes sorted by defense count (descending)
+     */
+    public List<VillageHero> getTopHeroes(int limit) {
+        return heroes.stream()
+            .sorted((a, b) -> Integer.compare(b.defenseCount(), a.defenseCount()))
+            .limit(limit)
+            .toList();
     }
     
     // ==================== POI Management ====================
@@ -523,6 +775,9 @@ public class Village {
                 ", pois=" + pois.size() +
                 ", entrances=" + entrances.size() +
                 ", regionId='" + regionId + '\'' +
+                ", mayorId=" + mayorId +
+                ", council=" + councilMembers.size() +
+                ", heroes=" + heroes.size() +
                 '}';
     }
 }

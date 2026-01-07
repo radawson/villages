@@ -7,6 +7,7 @@ import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.model.VillageHero;
 import org.clockworx.villages.model.VillagePoi;
 
 import java.io.File;
@@ -223,6 +224,33 @@ public class YamlStorageProvider implements StorageProvider {
                 // Region ID
                 if (village.getRegionId() != null) {
                     section.set("regionId", village.getRegionId());
+                }
+                
+                // Mayor
+                if (village.getMayorId() != null) {
+                    section.set("mayorId", village.getMayorId().toString());
+                }
+                
+                // Council members
+                if (!village.getCouncilMembers().isEmpty()) {
+                    List<String> councilList = village.getCouncilMembers().stream()
+                        .map(UUID::toString)
+                        .collect(Collectors.toList());
+                    section.set("council", councilList);
+                }
+                
+                // Heroes
+                if (!village.getHeroes().isEmpty()) {
+                    List<Map<String, Object>> heroesList = new ArrayList<>();
+                    for (VillageHero hero : village.getHeroes()) {
+                        Map<String, Object> heroMap = new LinkedHashMap<>();
+                        heroMap.put("playerId", hero.playerId().toString());
+                        heroMap.put("earnedAt", hero.earnedAt().toString());
+                        heroMap.put("raidLevel", hero.raidLevel());
+                        heroMap.put("defenseCount", hero.defenseCount());
+                        heroesList.add(heroMap);
+                    }
+                    section.set("heroes", heroesList);
                 }
                 
                 // Timestamps
@@ -579,13 +607,59 @@ public class YamlStorageProvider implements StorageProvider {
             // Region ID
             String regionId = section.getString("regionId");
             
+            // Mayor
+            String mayorIdStr = section.getString("mayorId");
+            UUID mayorId = (mayorIdStr != null && !mayorIdStr.isEmpty()) ? UUID.fromString(mayorIdStr) : null;
+            
             // Timestamps
             Instant createdAt = parseInstant(section.getString("createdAt"));
             Instant updatedAt = parseInstant(section.getString("updatedAt"));
             
             // Create village
             Village village = new Village(id, worldName, name, bellX, bellY, bellZ,
-                boundary, regionId, createdAt, updatedAt);
+                boundary, regionId, mayorId, createdAt, updatedAt);
+            
+            // Council members
+            List<?> councilList = section.getList("council");
+            if (councilList != null) {
+                List<UUID> council = new ArrayList<>();
+                for (Object obj : councilList) {
+                    if (obj instanceof String) {
+                        try {
+                            council.add(UUID.fromString((String) obj));
+                        } catch (IllegalArgumentException e) {
+                            plugin.getLogger().warning("Invalid UUID in council list: " + obj);
+                        }
+                    }
+                }
+                village.setCouncilMembers(council);
+            }
+            
+            // Heroes
+            List<?> heroesList = section.getList("heroes");
+            if (heroesList != null) {
+                List<VillageHero> heroes = new ArrayList<>();
+                for (Object heroObj : heroesList) {
+                    if (heroObj instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> heroMap = (Map<String, Object>) heroObj;
+                        String playerId = (String) heroMap.get("playerId");
+                        String earnedAt = (String) heroMap.get("earnedAt");
+                        int raidLevel = ((Number) heroMap.get("raidLevel")).intValue();
+                        int defenseCount = ((Number) heroMap.get("defenseCount")).intValue();
+                        VillageHero hero = VillageHero.fromStorage(
+                            UUID.fromString(playerId),
+                            parseInstant(earnedAt),
+                            raidLevel,
+                            defenseCount
+                        );
+                        if (hero != null) {
+                            heroes.add(hero);
+                        }
+                    }
+                }
+                village.setHeroes(heroes);
+            }
             
             // POIs
             List<?> poisList = section.getList("pois");

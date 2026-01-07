@@ -5,6 +5,7 @@ import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.model.VillageHero;
 import org.clockworx.villages.model.VillagePoi;
 
 import java.io.File;
@@ -63,6 +64,8 @@ public class SQLiteStorageProvider implements StorageProvider {
             center_y INT,
             center_z INT,
             region_id VARCHAR(64),
+            mayor_id VARCHAR(36),
+            council_members TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
@@ -93,6 +96,19 @@ public class SQLiteStorageProvider implements StorageProvider {
         )
         """;
     
+    private static final String CREATE_HEROES_TABLE = """
+        CREATE TABLE IF NOT EXISTS village_heroes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            village_id VARCHAR(36) NOT NULL,
+            player_id VARCHAR(36) NOT NULL,
+            earned_at TEXT NOT NULL,
+            raid_level INT NOT NULL,
+            defense_count INT NOT NULL,
+            FOREIGN KEY (village_id) REFERENCES villages(id) ON DELETE CASCADE,
+            UNIQUE(village_id, player_id)
+        )
+        """;
+    
     private static final String CREATE_WORLD_INDEX = 
         "CREATE INDEX IF NOT EXISTS idx_villages_world ON villages(world)";
     
@@ -104,6 +120,9 @@ public class SQLiteStorageProvider implements StorageProvider {
     
     private static final String CREATE_ENTRANCE_INDEX = 
         "CREATE INDEX IF NOT EXISTS idx_entrances_village ON village_entrances(village_id)";
+    
+    private static final String CREATE_HEROES_INDEX = 
+        "CREATE INDEX IF NOT EXISTS idx_heroes_village ON village_heroes(village_id)";
     
     /**
      * Creates a new SQLiteStorageProvider.
@@ -186,10 +205,47 @@ public class SQLiteStorageProvider implements StorageProvider {
             stmt.execute(CREATE_VILLAGES_TABLE);
             stmt.execute(CREATE_POIS_TABLE);
             stmt.execute(CREATE_ENTRANCES_TABLE);
+            stmt.execute(CREATE_HEROES_TABLE);
             stmt.execute(CREATE_WORLD_INDEX);
             stmt.execute(CREATE_BELL_INDEX);
             stmt.execute(CREATE_POI_INDEX);
             stmt.execute(CREATE_ENTRANCE_INDEX);
+            stmt.execute(CREATE_HEROES_INDEX);
+            
+            // Run migrations for existing databases
+            migrateDatabase();
+        }
+    }
+    
+    /**
+     * Migrates the database schema for existing databases.
+     * Adds new columns that may not exist in older versions.
+     */
+    private void migrateDatabase() {
+        // Add mayor_id column if it doesn't exist
+        addColumnIfNotExists("villages", "mayor_id", "VARCHAR(36)");
+        // Add council_members column if it doesn't exist
+        addColumnIfNotExists("villages", "council_members", "TEXT");
+    }
+    
+    /**
+     * Adds a column to a table if it doesn't already exist.
+     */
+    private void addColumnIfNotExists(String table, String column, String type) {
+        try {
+            // Check if column exists
+            DatabaseMetaData meta = connection.getMetaData();
+            try (ResultSet rs = meta.getColumns(null, null, table, column)) {
+                if (!rs.next()) {
+                    // Column doesn't exist, add it
+                    try (Statement stmt = connection.createStatement()) {
+                        stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
+                        plugin.getLogger().info("Added column " + column + " to table " + table);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to add column " + column + " to " + table, e);
         }
     }
     
@@ -206,8 +262,9 @@ public class SQLiteStorageProvider implements StorageProvider {
                     INSERT OR REPLACE INTO villages 
                     (id, world, name, bell_x, bell_y, bell_z, 
                      min_x, min_y, min_z, max_x, max_y, max_z,
-                     center_x, center_y, center_z, region_id, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     center_x, center_y, center_z, region_id, 
+                     mayor_id, council_members, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """;
                 
                 try (PreparedStatement ps = connection.prepareStatement(upsert)) {
@@ -236,13 +293,24 @@ public class SQLiteStorageProvider implements StorageProvider {
                     }
                     
                     ps.setString(16, village.getRegionId());
-                    ps.setString(17, village.getCreatedAt().toString());
-                    ps.setString(18, village.getUpdatedAt().toString());
+                    
+                    // Mayor
+                    if (village.getMayorId() != null) {
+                        ps.setString(17, village.getMayorId().toString());
+                    } else {
+                        ps.setNull(17, Types.VARCHAR);
+                    }
+                    
+                    // Council members as JSON array
+                    ps.setString(18, serializeUuidList(village.getCouncilMembers()));
+                    
+                    ps.setString(19, village.getCreatedAt().toString());
+                    ps.setString(20, village.getUpdatedAt().toString());
                     
                     ps.executeUpdate();
                 }
                 
-                // Delete existing POIs and entrances
+                // Delete existing POIs, entrances, and heroes
                 String villageId = village.getId().toString();
                 try (PreparedStatement ps = connection.prepareStatement(
                         "DELETE FROM village_pois WHERE village_id = ?")) {
@@ -252,6 +320,12 @@ public class SQLiteStorageProvider implements StorageProvider {
                 
                 try (PreparedStatement ps = connection.prepareStatement(
                         "DELETE FROM village_entrances WHERE village_id = ?")) {
+                    ps.setString(1, villageId);
+                    ps.executeUpdate();
+                }
+                
+                try (PreparedStatement ps = connection.prepareStatement(
+                        "DELETE FROM village_heroes WHERE village_id = ?")) {
                     ps.setString(1, villageId);
                     ps.executeUpdate();
                 }
@@ -283,6 +357,26 @@ public class SQLiteStorageProvider implements StorageProvider {
                             ps.setInt(4, entrance.getZ());
                             ps.setString(5, entrance.getFacingName());
                             ps.setInt(6, entrance.isAutoDetected() ? 1 : 0);
+                            ps.addBatch();
+                        }
+                        ps.executeBatch();
+                    }
+                }
+                
+                // Insert heroes
+                if (!village.getHeroes().isEmpty()) {
+                    String insertHero = """
+                        INSERT INTO village_heroes 
+                        (village_id, player_id, earned_at, raid_level, defense_count) 
+                        VALUES (?, ?, ?, ?, ?)
+                        """;
+                    try (PreparedStatement ps = connection.prepareStatement(insertHero)) {
+                        for (VillageHero hero : village.getHeroes()) {
+                            ps.setString(1, villageId);
+                            ps.setString(2, hero.playerId().toString());
+                            ps.setString(3, hero.earnedAt().toString());
+                            ps.setInt(4, hero.raidLevel());
+                            ps.setInt(5, hero.defenseCount());
                             ps.addBatch();
                         }
                         ps.executeBatch();
@@ -652,17 +746,31 @@ public class SQLiteStorageProvider implements StorageProvider {
         }
         
         String regionId = rs.getString("region_id");
+        
+        // Mayor
+        String mayorIdStr = rs.getString("mayor_id");
+        UUID mayorId = (mayorIdStr != null && !mayorIdStr.isEmpty()) ? UUID.fromString(mayorIdStr) : null;
+        
         Instant createdAt = parseInstant(rs.getString("created_at"));
         Instant updatedAt = parseInstant(rs.getString("updated_at"));
         
         Village village = new Village(id, worldName, name, bellX, bellY, bellZ,
-            boundary, regionId, createdAt, updatedAt);
+            boundary, regionId, mayorId, createdAt, updatedAt);
+        
+        // Load council members
+        String councilJson = rs.getString("council_members");
+        if (councilJson != null && !councilJson.isEmpty()) {
+            village.setCouncilMembers(deserializeUuidList(councilJson));
+        }
         
         // Load POIs
         loadPois(village);
         
         // Load entrances
         loadEntrances(village);
+        
+        // Load heroes
+        loadHeroes(village);
         
         return village;
     }
@@ -710,6 +818,76 @@ public class SQLiteStorageProvider implements StorageProvider {
                 village.setEntrances(entrances);
             }
         }
+    }
+    
+    /**
+     * Loads heroes for a village.
+     */
+    private void loadHeroes(Village village) throws SQLException {
+        String query = "SELECT * FROM village_heroes WHERE village_id = ?";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setString(1, village.getId().toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                List<VillageHero> heroes = new ArrayList<>();
+                while (rs.next()) {
+                    VillageHero hero = VillageHero.fromStorage(
+                        UUID.fromString(rs.getString("player_id")),
+                        parseInstant(rs.getString("earned_at")),
+                        rs.getInt("raid_level"),
+                        rs.getInt("defense_count")
+                    );
+                    if (hero != null) {
+                        heroes.add(hero);
+                    }
+                }
+                village.setHeroes(heroes);
+            }
+        }
+    }
+    
+    /**
+     * Serializes a list of UUIDs to a JSON array string.
+     */
+    private String serializeUuidList(List<UUID> uuids) {
+        if (uuids == null || uuids.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < uuids.size(); i++) {
+            if (i > 0) sb.append(",");
+            sb.append("\"").append(uuids.get(i).toString()).append("\"");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+    
+    /**
+     * Deserializes a JSON array string to a list of UUIDs.
+     */
+    private List<UUID> deserializeUuidList(String json) {
+        List<UUID> uuids = new ArrayList<>();
+        if (json == null || json.isEmpty() || json.equals("[]")) {
+            return uuids;
+        }
+        // Simple JSON array parsing: ["uuid1","uuid2",...]
+        String content = json.trim();
+        if (content.startsWith("[") && content.endsWith("]")) {
+            content = content.substring(1, content.length() - 1);
+            if (!content.isEmpty()) {
+                String[] parts = content.split(",");
+                for (String part : parts) {
+                    String uuid = part.trim().replace("\"", "");
+                    if (!uuid.isEmpty()) {
+                        try {
+                            uuids.add(UUID.fromString(uuid));
+                        } catch (IllegalArgumentException e) {
+                            plugin.getLogger().warning("Invalid UUID in council list: " + uuid);
+                        }
+                    }
+                }
+            }
+        }
+        return uuids;
     }
     
     /**

@@ -14,7 +14,6 @@ import org.clockworx.villages.managers.VillageManager;
 import org.clockworx.villages.regions.RegionManager;
 import org.clockworx.villages.signs.WelcomeSignPlacer;
 import org.clockworx.villages.storage.StorageManager;
-import org.clockworx.villages.storage.VillageStorage;
 import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
@@ -27,6 +26,8 @@ import org.clockworx.villages.util.PluginLogger;
  * - Multiple storage backends (YAML, SQLite, MySQL)
  * - Region plugin integration (WorldGuard, RegionGuard)
  * - Entrance detection and welcome signs
+ * - Village leadership (mayors and councils)
+ * - Hero of the Village tracking
  * 
  * @author Clockworx
  * @version {$version}
@@ -37,14 +38,13 @@ public class VillagesPlugin extends JavaPlugin {
     private ConfigManager configManager;
     private PluginLogger pluginLogger;
     
-    // Legacy components (for backward compatibility)
-    private VillageStorage villageStorage;
+    // Core managers
+    private StorageManager storageManager;
     private VillageManager villageManager;
     private SignManager signManager;
-    
-    // New 0.2.0 components
-    private StorageManager storageManager;
     private RegionManager regionManager;
+    
+    // Detection components
     private VillageBoundaryCalculator boundaryCalculator;
     private EntranceDetector entranceDetector;
     private EntranceMarker entranceMarker;
@@ -84,35 +84,19 @@ public class VillagesPlugin extends JavaPlugin {
         pluginLogger.debug(LogCategory.GENERAL, "Debug logging enabled: " + configManager.getDebugStatus());
         
         // ===== Phase 2: Storage =====
-        // Initialize legacy storage (for backward compatibility)
-        this.villageStorage = new VillageStorage(this);
-        
-        // Initialize new storage manager
+        // Initialize storage manager (SQLite, MySQL, or YAML based on config)
         this.storageManager = new StorageManager(this);
         try {
             storageManager.initialize().join();
             pluginLogger.info("Storage initialized: " + storageManager.getActiveType().name());
         } catch (Exception e) {
             pluginLogger.severe("Failed to initialize storage manager", e);
-            pluginLogger.warning("Falling back to legacy storage");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
         }
         
-        // ===== Phase 3: Managers =====
-        // Initialize legacy managers
-        this.villageManager = new VillageManager(this, villageStorage);
-        this.signManager = new SignManager(this);
-        
-        // Initialize region manager
-        this.regionManager = new RegionManager(this);
-        try {
-            regionManager.initialize().join();
-            pluginLogger.info("Region manager initialized: " + regionManager.getProviderName());
-        } catch (Exception e) {
-            pluginLogger.warning("Failed to initialize region manager: " + e.getMessage());
-        }
-        
-        // ===== Phase 4: Detection and Signs =====
-        // Initialize boundary calculator
+        // ===== Phase 3: Detection Components =====
+        // Initialize boundary calculator (required by VillageManager)
         this.boundaryCalculator = new VillageBoundaryCalculator(this);
         pluginLogger.debug(LogCategory.BOUNDARY, "Boundary calculator ready");
         
@@ -125,6 +109,20 @@ public class VillagesPlugin extends JavaPlugin {
         this.welcomeSignPlacer = new WelcomeSignPlacer(this);
         pluginLogger.debug(LogCategory.GENERAL, "Welcome sign placer ready");
         
+        // ===== Phase 4: Core Managers =====
+        // Initialize VillageManager with storage and boundary calculator
+        this.villageManager = new VillageManager(this, storageManager, boundaryCalculator);
+        this.signManager = new SignManager(this);
+        
+        // Initialize region manager
+        this.regionManager = new RegionManager(this);
+        try {
+            regionManager.initialize().join();
+            pluginLogger.info("Region manager initialized: " + regionManager.getProviderName());
+        } catch (Exception e) {
+            pluginLogger.warning("Failed to initialize region manager: " + e.getMessage());
+        }
+        
         // ===== Phase 5: Event Listeners =====
         this.chunkListener = new VillageChunkListener(villageManager, signManager);
         getServer().getPluginManager().registerEvents(chunkListener, this);
@@ -133,7 +131,7 @@ public class VillagesPlugin extends JavaPlugin {
         // ===== Phase 6: Commands =====
         CommandAPI.onEnable();
         
-        // Register the new VillageCommands
+        // Register the VillageCommands
         VillageCommands commands = new VillageCommands(
             this,
             storageManager,
@@ -302,16 +300,5 @@ public class VillagesPlugin extends JavaPlugin {
      */
     public WelcomeSignPlacer getWelcomeSignPlacer() {
         return welcomeSignPlacer;
-    }
-    
-    /**
-     * Gets the legacy VillageStorage instance.
-     * 
-     * @return The VillageStorage
-     * @deprecated Use StorageManager instead
-     */
-    @Deprecated
-    public VillageStorage getVillageStorage() {
-        return villageStorage;
     }
 }

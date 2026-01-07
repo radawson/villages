@@ -9,8 +9,7 @@ import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.managers.VillageManager;
-
-import java.util.UUID;
+import org.clockworx.villages.model.Village;
 
 /**
  * Listens for chunk load events and detects village bells.
@@ -24,9 +23,17 @@ import java.util.UUID;
  * - Block iteration: We check each block's material to find bells
  * - Event priority: We use NORMAL priority (default) to process after world generation
  * 
+ * When a bell is found:
+ * 1. VillageManager creates/loads the full Village object with calculated boundary
+ * 2. The Village is saved to the configured storage backend
+ * 3. Signs are placed around the bell with the village name
+ * 
  * Performance note: Iterating through all blocks in a chunk (16x16x384 = 98,304 blocks)
  * can be expensive, but chunk load events are relatively infrequent, so this is acceptable.
  * In the future, we could optimize by using structure data or other detection methods.
+ * 
+ * @author Clockworx
+ * @since 0.2.0
  */
 public class VillageChunkListener implements Listener {
     
@@ -36,7 +43,7 @@ public class VillageChunkListener implements Listener {
     /**
      * Creates a new VillageChunkListener.
      * 
-     * @param villageManager The manager for handling UUID generation and PDC storage
+     * @param villageManager The manager for village lifecycle operations
      * @param signManager The manager for placing signs around bells
      */
     public VillageChunkListener(VillageManager villageManager, SignManager signManager) {
@@ -52,7 +59,7 @@ public class VillageChunkListener implements Listener {
      * 2. Iterates through all blocks in the chunk (16x16x384)
      * 3. Checks if each block is a BELL material
      * 4. For each bell found:
-     *    - Gets or creates a UUID using VillageManager
+     *    - Creates or loads the Village using VillageManager
      *    - Places signs around the bell using SignManager
      * 
      * @param event The ChunkLoadEvent
@@ -86,24 +93,24 @@ public class VillageChunkListener implements Listener {
     }
     
     /**
-     * Processes a bell block: assigns UUID and places signs.
+     * Processes a bell block: creates/loads village and places signs.
      * 
      * This method:
-     * 1. Gets or creates a UUID for the bell using VillageManager
-     * 2. Gets the village name (if it exists) from VillageManager
-     * 3. Places signs around the bell using SignManager (with name if available, UUID otherwise)
+     * 1. Gets or creates a full Village object using VillageManager
+     *    - Calculates boundaries if new
+     *    - Saves to storage
+     *    - Caches UUID in bell's PDC
+     * 2. Places signs around the bell using SignManager
      * 
      * @param bellBlock The bell block to process
      */
     private void processBell(Block bellBlock) {
-        // Get or create the UUID for this village bell
-        UUID villageUuid = villageManager.getOrCreateVillageUuid(bellBlock);
+        // Get or create the Village for this bell
+        // This creates a full Village with calculated boundary and saves to storage
+        Village village = villageManager.getOrCreateVillage(bellBlock);
         
-        // Get the village name if it exists
-        String villageName = villageManager.getVillageName(bellBlock);
-        
-        // Place signs around the bell with the name (or UUID if no name)
-        signManager.placeSignsAroundBell(bellBlock, villageUuid, villageName);
+        // Place signs around the bell with the village name (or UUID if no name)
+        signManager.placeSignsAroundBell(bellBlock, village.getId(), village.getName());
     }
     
     /**
