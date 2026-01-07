@@ -139,7 +139,8 @@ public class VillagesPlugin extends JavaPlugin {
             boundaryCalculator,
             entranceDetector,
             entranceMarker,
-            welcomeSignPlacer
+            welcomeSignPlacer,
+            signManager
         );
         commands.register();
         pluginLogger.debug(LogCategory.COMMAND, "Commands registered");

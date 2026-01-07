@@ -14,6 +14,7 @@ import org.clockworx.villages.boundary.VillageBoundaryCalculator;
 import org.clockworx.villages.config.ConfigManager;
 import org.clockworx.villages.detection.EntranceDetector;
 import org.clockworx.villages.detection.EntranceMarker;
+import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
@@ -49,6 +50,7 @@ public class VillageCommands {
     private final EntranceDetector entranceDetector;
     private final EntranceMarker entranceMarker;
     private final WelcomeSignPlacer signPlacer;
+    private final SignManager signManager;
     
     /**
      * Creates a new VillageCommands handler.
@@ -59,7 +61,8 @@ public class VillageCommands {
                           VillageBoundaryCalculator boundaryCalculator,
                           EntranceDetector entranceDetector,
                           EntranceMarker entranceMarker,
-                          WelcomeSignPlacer signPlacer) {
+                          WelcomeSignPlacer signPlacer,
+                          SignManager signManager) {
         this.plugin = plugin;
         this.storageManager = storageManager;
         this.regionManager = regionManager;
@@ -67,6 +70,7 @@ public class VillageCommands {
         this.entranceDetector = entranceDetector;
         this.entranceMarker = entranceMarker;
         this.signPlacer = signPlacer;
+        this.signManager = signManager;
     }
     
     /**
@@ -325,8 +329,14 @@ public class VillageCommands {
             village.setName(name.trim());
             
             storageManager.saveVillage(village).thenRun(() -> {
-                // Update signs
+                // Update entrance welcome signs
                 signPlacer.updateSignsAtEntrances(village);
+                
+                // Update bell signs with the new name
+                Location bellLoc = village.getBellLocation();
+                if (bellLoc != null && bellLoc.getWorld() != null) {
+                    signManager.placeSignsAroundBell(bellLoc.getBlock(), village.getId(), name.trim());
+                }
                 
                 player.sendMessage(Component.text("Village named: ", NamedTextColor.GREEN)
                     .append(Component.text(name.trim(), NamedTextColor.YELLOW)));
