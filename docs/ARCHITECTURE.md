@@ -16,6 +16,14 @@ The Villages plugin provides comprehensive village management for Minecraft serv
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
+│                        VillagesPluginBootstrap                                │
+│                    (Paper Plugin Bootstrapper)                                │
+│  - Initializes ConfigManager and PluginLogger before plugin creation           │
+│  - Ensures proper initialization order                                       │
+└──────────────────────────────┬───────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
 │                              VillagesPlugin                                  │
 │                           (Main Plugin Class)                                │
 └─────────────────┬───────────────────────────────────────────────────────────┘
@@ -46,22 +54,44 @@ The Villages plugin provides comprehensive village management for Minecraft serv
 
 ## Core Components
 
+### VillagesPluginBootstrap
+
+The Paper plugin bootstrapper that initializes core components before the plugin is created:
+- Implements `PluginBootstrap` from Paper's API
+- Creates `ConfigManager` and `PluginLogger` in `createPlugin()` method
+- Ensures proper initialization order to prevent `NullPointerException` issues
+- Sets components in the plugin instance via setter methods
+
+**Why a bootstrapper?**
+- `ConfigManager` needs `PluginLogger` for logging, but `PluginLogger` needs `ConfigManager` for debug settings
+- The bootstrapper resolves this circular dependency by creating both in the correct order
+- Components are available immediately when the plugin instance is created
+
 ### VillagesPlugin
 
 The main plugin class that bootstraps all components:
 - Initializes CommandAPI in `onLoad()`
+- Receives pre-initialized `ConfigManager` and `PluginLogger` from bootstrapper
 - Creates and links all managers in `onEnable()`
 - Handles configuration loading and reloading
 - Manages plugin lifecycle
 
-Initialization order:
+**Initialization order:**
+
+**Bootstrap Phase (VillagesPluginBootstrap.createPlugin()):**
+1. Create `VillagesPlugin` instance
+2. Create `ConfigManager` (logger may be null initially)
+3. Create `PluginLogger` with `ConfigManager`
+4. Set logger in `ConfigManager` (now that it's available)
+5. Set both components in plugin instance
+
+**Enable Phase (VillagesPlugin.onEnable()):**
 1. `saveDefaultConfig()` - Creates config.yml if missing
-2. `ConfigManager` - Load and cache configuration
-3. `PluginLogger` - Initialize logging system
-4. `StorageManager` - Initialize async storage
-5. `RegionManager` - Detect and initialize region plugins
-6. `VillageBoundaryCalculator`, `EntranceDetector`, `EntranceMarker`, `WelcomeSignPlacer`
-7. Event listeners and commands
+2. Verify `ConfigManager` and `PluginLogger` are set (fallback creation if bootstrapper wasn't used)
+3. `StorageManager` - Initialize async storage
+4. `RegionManager` - Detect and initialize region plugins
+5. `VillageBoundaryCalculator`, `EntranceDetector`, `EntranceMarker`, `WelcomeSignPlacer`
+6. Event listeners and commands
 
 ### Configuration System
 
@@ -272,7 +302,7 @@ All debug settings can be changed at runtime via `/village debug` commands.
 ## Dependencies
 
 ### Runtime
-- Paper API 1.21.1+
+- Paper API 1.21.1+ (required for Paper plugin bootstrapper)
 - CommandAPI 11.1.0
 
 ### Optional
@@ -283,6 +313,21 @@ All debug settings can be changed at runtime via `/village debug` commands.
 ### Shaded
 - SQLite JDBC 3.45.1
 - HikariCP 5.1.0
+
+## Paper Plugin Features
+
+The plugin uses Paper's plugin system features:
+
+### Bootstrapper
+- `VillagesPluginBootstrap` implements `PluginBootstrap`
+- Declared in `paper-plugin.yml` with `bootstrapper:` field
+- Runs before plugin instance creation
+- Enables early initialization of core components
+
+### Plugin Configuration
+- Uses `paper-plugin.yml` for dependency management
+- Supports `load: BEFORE/AFTER` for load order control
+- Declares soft dependencies for WorldGuard, WorldEdit, RegionGuard
 
 ## Threading Model
 
