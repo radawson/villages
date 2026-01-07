@@ -28,7 +28,7 @@ import java.util.Map;
 public class ConfigManager {
     
     private final VillagesPlugin plugin;
-    private final PluginLogger logger;
+    private PluginLogger logger; // Non-final to allow setting after PluginLogger is created
     private FileConfiguration config;
     
     // Cached values for frequently accessed settings
@@ -46,8 +46,18 @@ public class ConfigManager {
      */
     public ConfigManager(VillagesPlugin plugin) {
         this.plugin = plugin;
-        this.logger = plugin.getPluginLogger();
+        // Logger will be set after PluginLogger is created
+        // For now, it may be null during initial construction
+        this.logger = plugin.getPluginLogger(); // May be null initially
         reload();
+    }
+    
+    /**
+     * Sets the logger after PluginLogger is initialized.
+     * Called by VillagesPlugin after PluginLogger creation.
+     */
+    public void setLogger(PluginLogger logger) {
+        this.logger = logger;
     }
     
     /**
@@ -55,12 +65,16 @@ public class ConfigManager {
      * Call this after plugin.reloadConfig().
      */
     public void reload() {
-        logger.debug(LogCategory.GENERAL, "Reloading configuration");
+        if (logger != null) {
+            logger.debug(LogCategory.GENERAL, "Reloading configuration");
+        }
         plugin.reloadConfig();
         this.config = plugin.getConfig();
         loadDebugSettings();
-        logger.debug(LogCategory.GENERAL, "Configuration reloaded - Debug: " + debugEnabled + 
-            ", Verbose: " + debugVerbose);
+        if (logger != null) {
+            logger.debug(LogCategory.GENERAL, "Configuration reloaded - Debug: " + debugEnabled + 
+                ", Verbose: " + debugVerbose);
+        }
     }
     
     /**

@@ -3,6 +3,7 @@ version: ${version}
 main: org.clockworx.villages.VillagesPlugin
 description: Paper Enhanced Villages - Boundary calculation, region protection, welcome signs
 api-version: '1.21.11'
+bootstrapper: org.clockworx.villages.VillagesPluginBootstrap
 
 # Soft dependencies - these plugins are optional but enhanced if present
 dependencies:

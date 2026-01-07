@@ -38,6 +38,24 @@ public class VillagesPlugin extends JavaPlugin {
     private ConfigManager configManager;
     private PluginLogger pluginLogger;
     
+    /**
+     * Sets the ConfigManager (called by bootstrapper).
+     * 
+     * @param configManager The ConfigManager instance
+     */
+    public void setConfigManager(ConfigManager configManager) {
+        this.configManager = configManager;
+    }
+    
+    /**
+     * Sets the PluginLogger (called by bootstrapper).
+     * 
+     * @param pluginLogger The PluginLogger instance
+     */
+    public void setPluginLogger(PluginLogger pluginLogger) {
+        this.pluginLogger = pluginLogger;
+    }
+    
     // Core managers
     private StorageManager storageManager;
     private VillageManager villageManager;
@@ -74,11 +92,15 @@ public class VillagesPlugin extends JavaPlugin {
         // Save default config.yml if it doesn't exist
         saveDefaultConfig();
         
-        // Create ConfigManager for typed access to configuration
-        this.configManager = new ConfigManager(this);
-        
-        // Create PluginLogger with debug support
-        this.pluginLogger = new PluginLogger(this, configManager);
+        // ConfigManager and PluginLogger are already initialized by the bootstrapper
+        // If they weren't (e.g., if bootstrapper wasn't used), create them here as fallback
+        if (configManager == null) {
+            this.configManager = new ConfigManager(this);
+        }
+        if (pluginLogger == null) {
+            this.pluginLogger = new PluginLogger(this, configManager);
+            configManager.setLogger(pluginLogger);
+        }
         
         pluginLogger.info("Initializing Villages plugin...");
         pluginLogger.debug(LogCategory.GENERAL, "Debug logging enabled: " + configManager.getDebugStatus());
@@ -161,15 +183,21 @@ public class VillagesPlugin extends JavaPlugin {
      */
     @Override
     public void onDisable() {
-        pluginLogger.info("Disabling Villages plugin...");
+        if (pluginLogger != null) {
+            pluginLogger.info("Disabling Villages plugin...");
+        }
         
         // Shutdown storage manager
         if (storageManager != null) {
             try {
                 storageManager.shutdown().join();
-                pluginLogger.info("Storage manager shut down successfully");
+                if (pluginLogger != null) {
+                    pluginLogger.info("Storage manager shut down successfully");
+                }
             } catch (Exception e) {
-                pluginLogger.severe("Error shutting down storage manager", e);
+                if (pluginLogger != null) {
+                    pluginLogger.severe("Error shutting down storage manager", e);
+                }
             }
         }
         
@@ -177,16 +205,22 @@ public class VillagesPlugin extends JavaPlugin {
         if (regionManager != null) {
             try {
                 regionManager.shutdown().join();
-                pluginLogger.debug(LogCategory.REGION, "Region manager shut down");
+                if (pluginLogger != null) {
+                    pluginLogger.debug(LogCategory.REGION, "Region manager shut down");
+                }
             } catch (Exception e) {
-                pluginLogger.warning("Error shutting down region manager: " + e.getMessage());
+                if (pluginLogger != null) {
+                    pluginLogger.warning("Error shutting down region manager: " + e.getMessage());
+                }
             }
         }
         
         // Unregister CommandAPI commands
         CommandAPI.onDisable();
         
-        pluginLogger.info("Villages plugin disabled.");
+        if (pluginLogger != null) {
+            pluginLogger.info("Villages plugin disabled.");
+        }
     }
     
     /**
@@ -208,7 +242,9 @@ public class VillagesPlugin extends JavaPlugin {
             welcomeSignPlacer.reload();
         }
         
-        pluginLogger.info("Configuration reloaded");
+        if (pluginLogger != null) {
+            pluginLogger.info("Configuration reloaded");
+        }
     }
     
     // ==================== Getters ====================
