@@ -10,6 +10,8 @@ import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
 import org.clockworx.villages.model.VillageHero;
 import org.clockworx.villages.model.VillagePoi;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -49,6 +51,7 @@ import java.util.logging.Level;
 public class MySQLStorageProvider implements StorageProvider {
     
     private final VillagesPlugin plugin;
+    private final PluginLogger logger;
     private HikariDataSource dataSource;
     private boolean available;
     
@@ -128,6 +131,7 @@ public class MySQLStorageProvider implements StorageProvider {
      */
     public MySQLStorageProvider(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         this.available = false;
     }
     
@@ -179,7 +183,8 @@ public class MySQLStorageProvider implements StorageProvider {
                 createTables();
                 
                 available = true;
-                plugin.getLogger().info("MySQL storage initialized: " + host + ":" + port + "/" + database);
+                logger.info(LogCategory.STORAGE, "MySQL storage initialized: " + host + ":" + port + "/" + database);
+                logger.debugStorage("MySQL connection pool configured: " + host + ":" + port + "/" + database);
                 
             } catch (SQLException e) {
                 throw new StorageException("Failed to initialize MySQL database", e);
@@ -193,7 +198,7 @@ public class MySQLStorageProvider implements StorageProvider {
             available = false;
             if (dataSource != null && !dataSource.isClosed()) {
                 dataSource.close();
-                plugin.getLogger().info("MySQL connection pool closed");
+                logger.info(LogCategory.STORAGE, "MySQL connection pool closed");
             }
         });
     }
@@ -237,7 +242,7 @@ public class MySQLStorageProvider implements StorageProvider {
             addColumnIfNotExists(conn, "villages", "mayor_id", "VARCHAR(36)");
             addColumnIfNotExists(conn, "villages", "council_members", "TEXT");
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to run database migrations", e);
+            logger.warning(LogCategory.STORAGE, "Failed to run database migrations", e);
         }
     }
     
@@ -251,12 +256,13 @@ public class MySQLStorageProvider implements StorageProvider {
                 if (!rs.next()) {
                     try (Statement stmt = conn.createStatement()) {
                         stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
-                        plugin.getLogger().info("Added column " + column + " to table " + table);
+                        logger.info(LogCategory.STORAGE, "Added column " + column + " to table " + table);
+                        logger.debugStorage("Schema migration: added column " + column + " to " + table);
                     }
                 }
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to add column " + column + " to " + table, e);
+            logger.warning(LogCategory.STORAGE, "Failed to add column " + column + " to " + table, e);
         }
     }
     
@@ -265,6 +271,7 @@ public class MySQLStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Void> saveVillage(Village village) {
         return CompletableFuture.runAsync(() -> {
+            logger.debugStorage("Saving village " + village.getId() + " to MySQL storage");
             try (Connection conn = getConnection()) {
                 conn.setAutoCommit(false);
                 
@@ -404,9 +411,11 @@ public class MySQLStorageProvider implements StorageProvider {
                     }
                     
                     conn.commit();
+                    logger.debugStorage("Village " + village.getId() + " saved successfully to MySQL storage");
                     
                 } catch (SQLException e) {
                     conn.rollback();
+                    logger.debugStorage("Transaction rolled back due to error");
                     throw e;
                 }
             } catch (SQLException e) {
@@ -418,16 +427,19 @@ public class MySQLStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Optional<Village>> loadVillage(UUID id) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Loading village " + id + " from MySQL storage");
             try (Connection conn = getConnection()) {
                 String query = "SELECT * FROM villages WHERE id = ?";
                 try (PreparedStatement ps = conn.prepareStatement(query)) {
                     ps.setString(1, id.toString());
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) {
+                            logger.debugStorage("Village " + id + " loaded successfully from MySQL storage");
                             return Optional.of(deserializeVillage(conn, rs));
                         }
                     }
                 }
+                logger.debugStorage("Village " + id + " not found in MySQL storage");
                 return Optional.empty();
             } catch (SQLException e) {
                 throw new StorageException("Failed to load village", e);
@@ -438,6 +450,7 @@ public class MySQLStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Optional<Village>> loadVillageByBell(String worldName, int x, int y, int z) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Loading village by bell location: " + worldName + " " + x + ", " + y + ", " + z);
             try (Connection conn = getConnection()) {
                 String query = "SELECT * FROM villages WHERE world = ? AND bell_x = ? AND bell_y = ? AND bell_z = ?";
                 try (PreparedStatement ps = conn.prepareStatement(query)) {
@@ -447,10 +460,12 @@ public class MySQLStorageProvider implements StorageProvider {
                     ps.setInt(4, z);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) {
+                            logger.debugStorage("Found village by bell location");
                             return Optional.of(deserializeVillage(conn, rs));
                         }
                     }
                 }
+                logger.debugStorage("No village found by bell location");
                 return Optional.empty();
             } catch (SQLException e) {
                 throw new StorageException("Failed to load village by bell", e);
@@ -535,11 +550,17 @@ public class MySQLStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Boolean> deleteVillage(UUID id) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Deleting village " + id + " from MySQL storage");
             try (Connection conn = getConnection()) {
                 String delete = "DELETE FROM villages WHERE id = ?";
                 try (PreparedStatement ps = conn.prepareStatement(delete)) {
                     ps.setString(1, id.toString());
                     int rows = ps.executeUpdate();
+                    if (rows > 0) {
+                        logger.debugStorage("Village " + id + " deleted successfully from MySQL storage");
+                    } else {
+                        logger.debugStorage("Village " + id + " not found for deletion");
+                    }
                     return rows > 0;
                 }
             } catch (SQLException e) {
@@ -694,7 +715,8 @@ public class MySQLStorageProvider implements StorageProvider {
                     exportTable(conn, writer, "village_pois");
                     exportTable(conn, writer, "village_entrances");
                     
-                    plugin.getLogger().info("Created MySQL backup at: " + backupPath);
+                    logger.info(LogCategory.STORAGE, "Created MySQL backup at: " + backupPath);
+                    logger.debugStorage("MySQL backup created: " + backupPath);
                 }
             } catch (SQLException | IOException e) {
                 throw new StorageException("Failed to create backup", e);
@@ -751,7 +773,7 @@ public class MySQLStorageProvider implements StorageProvider {
                         }
                     }
                 } catch (Exception e) {
-                    plugin.getLogger().log(Level.WARNING, "Failed to import village: " + village.getId(), e);
+                    logger.warning(LogCategory.STORAGE, "Failed to import village: " + village.getId(), e);
                 }
             }
             return count;
@@ -924,7 +946,7 @@ public class MySQLStorageProvider implements StorageProvider {
                         try {
                             uuids.add(UUID.fromString(uuid));
                         } catch (IllegalArgumentException e) {
-                            plugin.getLogger().warning("Invalid UUID in council list: " + uuid);
+                            logger.warning(LogCategory.STORAGE, "Invalid UUID in council list: " + uuid);
                         }
                     }
                 }

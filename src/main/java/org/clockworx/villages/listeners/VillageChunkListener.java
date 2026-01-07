@@ -7,9 +7,12 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
+import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.managers.VillageManager;
 import org.clockworx.villages.model.Village;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 /**
  * Listens for chunk load events and detects village bells.
@@ -39,16 +42,19 @@ public class VillageChunkListener implements Listener {
     
     private final VillageManager villageManager;
     private final SignManager signManager;
+    private final PluginLogger logger;
     
     /**
      * Creates a new VillageChunkListener.
      * 
      * @param villageManager The manager for village lifecycle operations
      * @param signManager The manager for placing signs around bells
+     * @param plugin The plugin instance for logger access
      */
-    public VillageChunkListener(VillageManager villageManager, SignManager signManager) {
+    public VillageChunkListener(VillageManager villageManager, SignManager signManager, VillagesPlugin plugin) {
         this.villageManager = villageManager;
         this.signManager = signManager;
+        this.logger = plugin.getPluginLogger();
     }
     
     /**
@@ -66,12 +72,19 @@ public class VillageChunkListener implements Listener {
      */
     @EventHandler(priority = EventPriority.NORMAL)
     public void onChunkLoad(ChunkLoadEvent event) {
+        if (logger != null) {
+            logger.debug(LogCategory.GENERAL, "Chunk load event: " + event.getChunk().getX() + ", " + event.getChunk().getZ() + 
+                " in world " + event.getWorld().getName());
+        }
+        
         // Get the chunk that was loaded
         var chunk = event.getChunk();
         
         // Get the world's min and max height for iteration
         int minHeight = chunk.getWorld().getMinHeight();
         int maxHeight = chunk.getWorld().getMaxHeight();
+        
+        int bellCount = 0;
         
         // Iterate through all blocks in the chunk
         // A chunk is 16x16 blocks horizontally
@@ -85,10 +98,15 @@ public class VillageChunkListener implements Listener {
                     // Check if this block is a bell
                     if (block.getType() == Material.BELL) {
                         // Found a bell! Process it
+                        bellCount++;
                         processBell(block);
                     }
                 }
             }
+        }
+        
+        if (logger != null && bellCount > 0) {
+            logger.info(LogCategory.GENERAL, "Found " + bellCount + " bell(s) in chunk " + chunk.getX() + ", " + chunk.getZ());
         }
     }
     
@@ -105,9 +123,17 @@ public class VillageChunkListener implements Listener {
      * @param bellBlock The bell block to process
      */
     private void processBell(Block bellBlock) {
+        if (logger != null) {
+            logger.debug(LogCategory.GENERAL, "Processing bell at " + bellBlock.getLocation());
+        }
+        
         // Get or create the Village for this bell
         // This creates a full Village with calculated boundary and saves to storage
         Village village = villageManager.getOrCreateVillage(bellBlock);
+        
+        if (logger != null) {
+            logger.debug(LogCategory.GENERAL, "Village " + village.getId() + " ready, placing signs around bell");
+        }
         
         // Place signs around the bell with the village name (or UUID if no name)
         signManager.placeSignsAroundBell(bellBlock, village.getId(), village.getName());

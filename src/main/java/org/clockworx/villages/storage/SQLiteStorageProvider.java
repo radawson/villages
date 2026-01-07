@@ -7,6 +7,8 @@ import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
 import org.clockworx.villages.model.VillageHero;
 import org.clockworx.villages.model.VillagePoi;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,6 +43,7 @@ import java.util.logging.Level;
 public class SQLiteStorageProvider implements StorageProvider {
     
     private final VillagesPlugin plugin;
+    private final PluginLogger logger;
     private final File databaseFile;
     private Connection connection;
     private boolean available;
@@ -131,6 +134,7 @@ public class SQLiteStorageProvider implements StorageProvider {
      */
     public SQLiteStorageProvider(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         String filename = plugin.getConfig().getString("storage.sqlite.file", "villages.db");
         this.databaseFile = new File(plugin.getDataFolder(), filename);
         this.available = false;
@@ -167,7 +171,8 @@ public class SQLiteStorageProvider implements StorageProvider {
                 createTables();
                 
                 available = true;
-                plugin.getLogger().info("SQLite storage initialized: " + databaseFile.getName());
+                logger.info(LogCategory.STORAGE, "SQLite storage initialized: " + databaseFile.getName());
+                logger.debugStorage("SQLite database file: " + databaseFile.getAbsolutePath());
                 
             } catch (ClassNotFoundException e) {
                 throw new StorageException("SQLite JDBC driver not found", e);
@@ -184,9 +189,9 @@ public class SQLiteStorageProvider implements StorageProvider {
             if (connection != null) {
                 try {
                     connection.close();
-                    plugin.getLogger().info("SQLite connection closed");
+                    logger.info(LogCategory.STORAGE, "SQLite connection closed");
                 } catch (SQLException e) {
-                    plugin.getLogger().log(Level.WARNING, "Error closing SQLite connection", e);
+                    logger.warning(LogCategory.STORAGE, "Error closing SQLite connection", e);
                 }
             }
         });
@@ -240,12 +245,13 @@ public class SQLiteStorageProvider implements StorageProvider {
                     // Column doesn't exist, add it
                     try (Statement stmt = connection.createStatement()) {
                         stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
-                        plugin.getLogger().info("Added column " + column + " to table " + table);
+                        logger.info(LogCategory.STORAGE, "Added column " + column + " to table " + table);
+                        logger.debugStorage("Schema migration: added column " + column + " to " + table);
                     }
                 }
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to add column " + column + " to " + table, e);
+            logger.warning(LogCategory.STORAGE, "Failed to add column " + column + " to " + table, e);
         }
     }
     
@@ -254,6 +260,7 @@ public class SQLiteStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Void> saveVillage(Village village) {
         return CompletableFuture.runAsync(() -> {
+            logger.debugStorage("Saving village " + village.getId() + " to SQLite storage");
             try {
                 connection.setAutoCommit(false);
                 
@@ -384,19 +391,21 @@ public class SQLiteStorageProvider implements StorageProvider {
                 }
                 
                 connection.commit();
+                logger.debugStorage("Village " + village.getId() + " saved successfully to SQLite storage");
                 
             } catch (SQLException e) {
                 try {
                     connection.rollback();
+                    logger.debugStorage("Transaction rolled back due to error");
                 } catch (SQLException rollbackEx) {
-                    plugin.getLogger().log(Level.SEVERE, "Rollback failed", rollbackEx);
+                    logger.severe(LogCategory.STORAGE, "Rollback failed", rollbackEx);
                 }
                 throw new StorageException("Failed to save village", e);
             } finally {
                 try {
                     connection.setAutoCommit(true);
                 } catch (SQLException e) {
-                    plugin.getLogger().log(Level.WARNING, "Failed to reset auto-commit", e);
+                    logger.warning(LogCategory.STORAGE, "Failed to reset auto-commit", e);
                 }
             }
         });
@@ -405,16 +414,19 @@ public class SQLiteStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Optional<Village>> loadVillage(UUID id) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Loading village " + id + " from SQLite storage");
             try {
                 String query = "SELECT * FROM villages WHERE id = ?";
                 try (PreparedStatement ps = connection.prepareStatement(query)) {
                     ps.setString(1, id.toString());
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) {
+                            logger.debugStorage("Village " + id + " loaded successfully from SQLite storage");
                             return Optional.of(deserializeVillage(rs));
                         }
                     }
                 }
+                logger.debugStorage("Village " + id + " not found in SQLite storage");
                 return Optional.empty();
             } catch (SQLException e) {
                 throw new StorageException("Failed to load village", e);
@@ -425,6 +437,7 @@ public class SQLiteStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Optional<Village>> loadVillageByBell(String worldName, int x, int y, int z) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Loading village by bell location: " + worldName + " " + x + ", " + y + ", " + z);
             try {
                 String query = "SELECT * FROM villages WHERE world = ? AND bell_x = ? AND bell_y = ? AND bell_z = ?";
                 try (PreparedStatement ps = connection.prepareStatement(query)) {
@@ -434,10 +447,12 @@ public class SQLiteStorageProvider implements StorageProvider {
                     ps.setInt(4, z);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) {
+                            logger.debugStorage("Found village by bell location");
                             return Optional.of(deserializeVillage(rs));
                         }
                     }
                 }
+                logger.debugStorage("No village found by bell location");
                 return Optional.empty();
             } catch (SQLException e) {
                 throw new StorageException("Failed to load village by bell", e);
@@ -523,11 +538,17 @@ public class SQLiteStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Boolean> deleteVillage(UUID id) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Deleting village " + id + " from SQLite storage");
             try {
                 String delete = "DELETE FROM villages WHERE id = ?";
                 try (PreparedStatement ps = connection.prepareStatement(delete)) {
                     ps.setString(1, id.toString());
                     int rows = ps.executeUpdate();
+                    if (rows > 0) {
+                        logger.debugStorage("Village " + id + " deleted successfully from SQLite storage");
+                    } else {
+                        logger.debugStorage("Village " + id + " not found for deletion");
+                    }
                     return rows > 0;
                 }
             } catch (SQLException e) {
@@ -680,7 +701,8 @@ public class SQLiteStorageProvider implements StorageProvider {
                 
                 File backupFile = new File(backupPath);
                 Files.copy(databaseFile.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                plugin.getLogger().info("Created SQLite backup at: " + backupPath);
+                logger.info(LogCategory.STORAGE, "Created SQLite backup at: " + backupPath);
+                logger.debugStorage("SQLite backup created: " + backupPath);
             } catch (SQLException | IOException e) {
                 throw new StorageException("Failed to create backup", e);
             }
@@ -708,7 +730,7 @@ public class SQLiteStorageProvider implements StorageProvider {
                         }
                     }
                 } catch (Exception e) {
-                    plugin.getLogger().log(Level.WARNING, "Failed to import village: " + village.getId(), e);
+                    logger.warning(LogCategory.STORAGE, "Failed to import village: " + village.getId(), e);
                 }
             }
             return count;
@@ -881,7 +903,7 @@ public class SQLiteStorageProvider implements StorageProvider {
                         try {
                             uuids.add(UUID.fromString(uuid));
                         } catch (IllegalArgumentException e) {
-                            plugin.getLogger().warning("Invalid UUID in council list: " + uuid);
+                            logger.warning(LogCategory.STORAGE, "Invalid UUID in council list: " + uuid);
                         }
                     }
                 }

@@ -11,6 +11,8 @@ import org.clockworx.villages.boundary.VillageBoundaryCalculator;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.storage.StorageManager;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +39,7 @@ public class VillageManager {
     private final VillageBoundaryCalculator boundaryCalculator;
     private final NamespacedKey villageUuidKey;
     private final NamespacedKey villageNameKey;
+    private final PluginLogger logger;
     
     /**
      * Creates a new VillageManager.
@@ -52,6 +55,7 @@ public class VillageManager {
         this.boundaryCalculator = boundaryCalculator;
         this.villageUuidKey = new NamespacedKey(plugin, "village_uuid");
         this.villageNameKey = new NamespacedKey(plugin, "village_name");
+        this.logger = plugin.getPluginLogger();
     }
     
     /**
@@ -68,14 +72,20 @@ public class VillageManager {
      * @return The Village associated with this bell
      */
     public Village getOrCreateVillage(Block bellBlock) {
+        logger.debug(LogCategory.GENERAL, "getOrCreateVillage called for bell at " + bellBlock.getLocation());
+        
         // Try to get existing UUID from PDC
         UUID existingUuid = getUuidFromPdc(bellBlock);
         
         if (existingUuid != null) {
+            logger.debug(LogCategory.GENERAL, "Found existing UUID in PDC: " + existingUuid);
             // Try to load from storage
             Optional<Village> existing = storageManager.loadVillage(existingUuid).join();
             if (existing.isPresent()) {
+                logger.debug(LogCategory.GENERAL, "Loaded existing village " + existingUuid + " from storage");
                 return existing.get();
+            } else {
+                logger.debug(LogCategory.GENERAL, "UUID in PDC but village not found in storage, will check by location");
             }
         }
         
@@ -85,9 +95,11 @@ public class VillageManager {
         int y = bellBlock.getY();
         int z = bellBlock.getZ();
         
+        logger.debug(LogCategory.GENERAL, "Checking storage for village by bell location: " + worldName + " " + x + ", " + y + ", " + z);
         Optional<Village> byBell = storageManager.loadVillageByBell(worldName, x, y, z).join();
         if (byBell.isPresent()) {
             Village village = byBell.get();
+            logger.debug(LogCategory.GENERAL, "Found village " + village.getId() + " by bell location, updating PDC");
             // Ensure PDC is updated
             setUuidInPdc(bellBlock, village.getId());
             return village;
@@ -95,19 +107,22 @@ public class VillageManager {
         
         // Create new village
         UUID newUuid = existingUuid != null ? existingUuid : UUID.randomUUID();
+        logger.debug(LogCategory.GENERAL, "Creating new village with UUID: " + newUuid);
         Village village = new Village(newUuid, bellBlock.getLocation());
         
         // Calculate boundary
+        logger.debug(LogCategory.GENERAL, "Calculating boundary for new village " + newUuid);
         VillageBoundary boundary = boundaryCalculator.calculateAndPopulate(village);
         village.setBoundary(boundary);
         
         // Save to storage
         storageManager.saveVillage(village).join();
+        logger.debug(LogCategory.GENERAL, "Saved new village " + newUuid + " to storage");
         
         // Cache UUID in PDC
         setUuidInPdc(bellBlock, newUuid);
         
-        plugin.getLogger().info("Created new village " + newUuid + " at " + bellBlock.getLocation());
+        logger.info(LogCategory.GENERAL, "Created new village " + newUuid + " at " + bellBlock.getLocation());
         
         return village;
     }
@@ -119,7 +134,14 @@ public class VillageManager {
      * @return The Village if found, empty otherwise
      */
     public Optional<Village> getVillage(UUID id) {
-        return storageManager.loadVillage(id).join();
+        logger.debug(LogCategory.GENERAL, "getVillage called for UUID: " + id);
+        Optional<Village> village = storageManager.loadVillage(id).join();
+        if (village.isPresent()) {
+            logger.debug(LogCategory.GENERAL, "Loaded village " + id + " from storage");
+        } else {
+            logger.debug(LogCategory.GENERAL, "Village " + id + " not found in storage");
+        }
+        return village;
     }
     
     /**
@@ -130,12 +152,15 @@ public class VillageManager {
      * @return The Village if found, empty otherwise
      */
     public Optional<Village> getVillageFromBell(Block bellBlock) {
+        logger.debug(LogCategory.GENERAL, "getVillageFromBell called for bell at " + bellBlock.getLocation());
         UUID uuid = getUuidFromPdc(bellBlock);
         if (uuid != null) {
+            logger.debug(LogCategory.GENERAL, "Found UUID in PDC: " + uuid);
             return storageManager.loadVillage(uuid).join();
         }
         
         // Check by location
+        logger.debug(LogCategory.GENERAL, "No UUID in PDC, checking by location");
         return storageManager.loadVillageByBell(
             bellBlock.getWorld().getName(),
             bellBlock.getX(),
@@ -150,7 +175,9 @@ public class VillageManager {
      * @param village The village to save
      */
     public void saveVillage(Village village) {
+        logger.debug(LogCategory.GENERAL, "saveVillage called for village " + village.getId());
         storageManager.saveVillage(village).join();
+        logger.debug(LogCategory.GENERAL, "Village " + village.getId() + " saved to storage");
     }
     
     /**
@@ -159,6 +186,7 @@ public class VillageManager {
      * @param village The village to save
      */
     public void saveVillageAsync(Village village) {
+        logger.debug(LogCategory.GENERAL, "saveVillageAsync called for village " + village.getId());
         storageManager.saveVillage(village);
     }
     
@@ -169,8 +197,15 @@ public class VillageManager {
      * @return The updated village with new boundary
      */
     public Village recalculateBoundary(Village village) {
+        logger.debug(LogCategory.GENERAL, "recalculateBoundary called for village " + village.getId());
         VillageBoundary boundary = boundaryCalculator.calculateAndPopulate(village);
         village.setBoundary(boundary);
+        if (boundary != null) {
+            logger.debug(LogCategory.GENERAL, "Boundary recalculated for village " + village.getId() + 
+                " - Size: " + boundary.getWidth() + " x " + boundary.getHeight() + " x " + boundary.getDepth());
+        } else {
+            logger.warning(LogCategory.GENERAL, "Boundary calculation returned null for village " + village.getId());
+        }
         saveVillageAsync(village);
         return village;
     }
@@ -182,9 +217,10 @@ public class VillageManager {
      * @param name The new name
      */
     public void setVillageName(Village village, String name) {
+        logger.debug(LogCategory.GENERAL, "setVillageName called for village " + village.getId() + " with name: " + name);
         village.setName(name);
         saveVillageAsync(village);
-        plugin.getLogger().info("Named village " + village.getId() + " to: " + name);
+        logger.info(LogCategory.GENERAL, "Named village " + village.getId() + " to: " + name);
     }
     
     /**
@@ -205,7 +241,7 @@ public class VillageManager {
             try {
                 return UUID.fromString(uuidString);
             } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Invalid UUID in bell PDC: " + uuidString);
+                logger.warning(LogCategory.GENERAL, "Invalid UUID in bell PDC: " + uuidString);
             }
         }
         return null;
@@ -220,9 +256,10 @@ public class VillageManager {
     private void setUuidInPdc(Block bellBlock, UUID uuid) {
         BlockState blockState = bellBlock.getState();
         if (!(blockState instanceof PersistentDataHolder holder)) {
-            plugin.getLogger().warning("Bell at " + bellBlock.getLocation() + " does not support PDC");
+            logger.warning(LogCategory.GENERAL, "Bell at " + bellBlock.getLocation() + " does not support PDC");
             return;
         }
+        logger.debug(LogCategory.GENERAL, "Setting UUID " + uuid + " in PDC for bell at " + bellBlock.getLocation());
         PersistentDataContainer pdc = holder.getPersistentDataContainer();
         pdc.set(villageUuidKey, PersistentDataType.STRING, uuid.toString());
         blockState.update();
@@ -287,7 +324,7 @@ public class VillageManager {
         if (village.isPresent()) {
             setVillageName(village.get(), name);
         } else {
-            plugin.getLogger().warning("Cannot set name: No village found for bell at " + bellBlock.getLocation());
+            logger.warning(LogCategory.GENERAL, "Cannot set name: No village found for bell at " + bellBlock.getLocation());
         }
     }
     

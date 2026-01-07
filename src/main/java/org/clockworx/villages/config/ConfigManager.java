@@ -5,6 +5,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.storage.StorageManager;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +28,7 @@ import java.util.Map;
 public class ConfigManager {
     
     private final VillagesPlugin plugin;
+    private final PluginLogger logger;
     private FileConfiguration config;
     
     // Cached values for frequently accessed settings
@@ -43,6 +46,7 @@ public class ConfigManager {
      */
     public ConfigManager(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         reload();
     }
     
@@ -51,9 +55,12 @@ public class ConfigManager {
      * Call this after plugin.reloadConfig().
      */
     public void reload() {
+        logger.debug(LogCategory.GENERAL, "Reloading configuration");
         plugin.reloadConfig();
         this.config = plugin.getConfig();
         loadDebugSettings();
+        logger.debug(LogCategory.GENERAL, "Configuration reloaded - Debug: " + debugEnabled + 
+            ", Verbose: " + debugVerbose);
     }
     
     /**
@@ -218,7 +225,7 @@ public class ConfigManager {
                 Material material = Material.valueOf(name.toUpperCase());
                 materials.add(material);
             } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Invalid path block material: " + name);
+                logger.warning(LogCategory.GENERAL, "Invalid path block material: " + name);
             }
         }
         

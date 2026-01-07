@@ -9,6 +9,8 @@ import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
 import org.clockworx.villages.model.VillageHero;
 import org.clockworx.villages.model.VillagePoi;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.io.File;
 import java.io.IOException;
@@ -70,6 +72,7 @@ import java.util.stream.Collectors;
 public class YamlStorageProvider implements StorageProvider {
     
     private final VillagesPlugin plugin;
+    private final PluginLogger logger;
     private final File storageFile;
     private final ReentrantReadWriteLock lock;
     private YamlConfiguration config;
@@ -86,6 +89,7 @@ public class YamlStorageProvider implements StorageProvider {
      */
     public YamlStorageProvider(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         this.storageFile = new File(plugin.getDataFolder(), "villages.yml");
         this.lock = new ReentrantReadWriteLock();
         this.villageCache = new HashMap<>();
@@ -111,7 +115,7 @@ public class YamlStorageProvider implements StorageProvider {
                 // Create file if it doesn't exist
                 if (!storageFile.exists()) {
                     storageFile.createNewFile();
-                    plugin.getLogger().info("Created new villages.yml storage file");
+                    logger.info(LogCategory.STORAGE, "Created new villages.yml storage file");
                 }
                 
                 // Load the configuration
@@ -127,7 +131,8 @@ public class YamlStorageProvider implements StorageProvider {
                 loadCache();
                 
                 available = true;
-                plugin.getLogger().info("YAML storage initialized with " + villageCache.size() + " villages");
+                logger.info(LogCategory.STORAGE, "YAML storage initialized with " + villageCache.size() + " villages");
+                logger.debugStorage("YAML storage file: " + storageFile.getAbsolutePath());
                 
             } catch (IOException e) {
                 throw new StorageException("Failed to initialize YAML storage", e);
@@ -164,6 +169,7 @@ public class YamlStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Void> saveVillage(Village village) {
         return CompletableFuture.runAsync(() -> {
+            logger.debugStorage("Saving village " + village.getId() + " to YAML storage");
             lock.writeLock().lock();
             try {
                 String path = "villages." + village.getId().toString();
@@ -262,6 +268,7 @@ public class YamlStorageProvider implements StorageProvider {
                 
                 // Update cache
                 villageCache.put(village.getId(), village);
+                logger.debugStorage("Village " + village.getId() + " saved successfully to YAML storage");
                 
             } finally {
                 lock.writeLock().unlock();
@@ -272,15 +279,18 @@ public class YamlStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Optional<Village>> loadVillage(UUID id) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Loading village " + id + " from YAML storage");
             lock.readLock().lock();
             try {
                 // Check cache first
                 if (cacheValid && villageCache.containsKey(id)) {
+                    logger.debugStorage("Village " + id + " found in cache");
                     return Optional.of(villageCache.get(id));
                 }
                 
                 String path = "villages." + id.toString();
                 if (!config.isConfigurationSection(path)) {
+                    logger.debugStorage("Village " + id + " not found in YAML storage");
                     return Optional.empty();
                 }
                 
@@ -289,6 +299,9 @@ public class YamlStorageProvider implements StorageProvider {
                 
                 if (village != null) {
                     villageCache.put(id, village);
+                    logger.debugStorage("Village " + id + " loaded successfully from YAML storage");
+                } else {
+                    logger.debugStorage("Village " + id + " deserialization returned null");
                 }
                 
                 return Optional.ofNullable(village);
@@ -302,14 +315,23 @@ public class YamlStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Optional<Village>> loadVillageByBell(String worldName, int x, int y, int z) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Loading village by bell location: " + worldName + " " + x + ", " + y + ", " + z);
             lock.readLock().lock();
             try {
                 ensureCacheValid();
                 
-                return villageCache.values().stream()
+                Optional<Village> result = villageCache.values().stream()
                     .filter(v -> v.getWorldName().equals(worldName))
                     .filter(v -> v.getBellX() == x && v.getBellY() == y && v.getBellZ() == z)
                     .findFirst();
+                
+                if (result.isPresent()) {
+                    logger.debugStorage("Found village " + result.get().getId() + " by bell location");
+                } else {
+                    logger.debugStorage("No village found by bell location");
+                }
+                
+                return result;
                     
             } finally {
                 lock.readLock().unlock();
@@ -373,10 +395,12 @@ public class YamlStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Boolean> deleteVillage(UUID id) {
         return CompletableFuture.supplyAsync(() -> {
+            logger.debugStorage("Deleting village " + id + " from YAML storage");
             lock.writeLock().lock();
             try {
                 String path = "villages." + id.toString();
                 if (!config.isConfigurationSection(path)) {
+                    logger.debugStorage("Village " + id + " not found for deletion");
                     return false;
                 }
                 
@@ -384,6 +408,7 @@ public class YamlStorageProvider implements StorageProvider {
                 save();
                 
                 villageCache.remove(id);
+                logger.debugStorage("Village " + id + " deleted successfully from YAML storage");
                 return true;
                 
             } finally {
@@ -487,7 +512,8 @@ public class YamlStorageProvider implements StorageProvider {
             try {
                 File backupFile = new File(backupPath);
                 Files.copy(storageFile.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                plugin.getLogger().info("Created backup at: " + backupPath);
+                logger.info(LogCategory.STORAGE, "Created backup at: " + backupPath);
+                logger.debugStorage("YAML backup created: " + backupPath);
             } catch (IOException e) {
                 throw new StorageException("Failed to create backup", e);
             } finally {
@@ -522,9 +548,11 @@ public class YamlStorageProvider implements StorageProvider {
      */
     private void save() {
         try {
+            logger.debugStorage("Saving YAML storage to " + storageFile.getAbsolutePath());
             config.save(storageFile);
+            logger.debugStorage("YAML storage saved successfully");
         } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to save villages.yml", e);
+            logger.severe(LogCategory.STORAGE, "Failed to save villages.yml", e);
             throw new StorageException("Failed to save YAML storage", e);
         }
     }
@@ -550,7 +578,7 @@ public class YamlStorageProvider implements StorageProvider {
                     villageCache.put(id, village);
                 }
             } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Invalid village UUID in storage: " + key);
+                logger.warning(LogCategory.STORAGE, "Invalid village UUID in storage: " + key);
             }
         }
         
@@ -628,7 +656,7 @@ public class YamlStorageProvider implements StorageProvider {
                         try {
                             council.add(UUID.fromString((String) obj));
                         } catch (IllegalArgumentException e) {
-                            plugin.getLogger().warning("Invalid UUID in council list: " + obj);
+                            logger.warning(LogCategory.STORAGE, "Invalid UUID in council list: " + obj);
                         }
                     }
                 }
@@ -702,7 +730,7 @@ public class YamlStorageProvider implements StorageProvider {
             return village;
             
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to deserialize village: " + id, e);
+            logger.warning(LogCategory.STORAGE, "Failed to deserialize village: " + id, e);
             return null;
         }
     }

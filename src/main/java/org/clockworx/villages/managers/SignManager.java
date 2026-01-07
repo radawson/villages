@@ -9,6 +9,8 @@ import org.bukkit.block.Sign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
 import org.clockworx.villages.VillagesPlugin;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.UUID;
 
@@ -26,6 +28,7 @@ import java.util.UUID;
 public class SignManager {
     
     private final VillagesPlugin plugin;
+    private final PluginLogger logger;
     
     // The four cardinal directions where we'll place signs
     private static final BlockFace[] CARDINAL_DIRECTIONS = {
@@ -42,6 +45,7 @@ public class SignManager {
      */
     public SignManager(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
     }
     
     /**
@@ -84,6 +88,9 @@ public class SignManager {
      * @param villageName The name to display on the signs (null to display UUID instead)
      */
     public void placeSignsAroundBell(Block bellBlock, UUID villageUuid, String villageName) {
+        logger.debug(LogCategory.GENERAL, "placeSignsAroundBell called for village " + villageUuid + 
+            " at bell " + bellBlock.getLocation() + " with name: " + villageName);
+        
         for (BlockFace direction : CARDINAL_DIRECTIONS) {
             // First, try to place the sign two blocks away horizontally, one block down (at the base)
             // This prevents signs from blocking bell access
@@ -94,14 +101,14 @@ public class SignManager {
                 // Update the existing sign instead of placing a new one
                 updateSign(signBlock, direction, villageUuid, villageName);
                 
-                plugin.getLogger().fine("Updated existing sign at base level " + signBlock.getLocation() + 
+                logger.debug(LogCategory.GENERAL, "Updated existing sign at base level " + signBlock.getLocation() + 
                     " facing " + direction + " with " + 
                     (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
             } else if (canPlaceSign(signBlock)) {
                 // Place a wall sign facing away from the bell (in the same direction as placement)
                 placeWallSign(signBlock, direction, villageUuid, villageName);
                 
-                plugin.getLogger().fine("Placed sign at base level " + signBlock.getLocation() + 
+                logger.debug(LogCategory.GENERAL, "Placed sign at base level " + signBlock.getLocation() + 
                     " facing " + direction + " (away from bell) with " + 
                     (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
             } else {
@@ -113,18 +120,18 @@ public class SignManager {
                     // Update the existing sign instead of placing a new one
                     updateSign(fallbackBlock, direction, villageUuid, villageName);
                     
-                    plugin.getLogger().fine("Updated existing sign at bell level " + fallbackBlock.getLocation() + 
+                    logger.debug(LogCategory.GENERAL, "Updated existing sign at bell level " + fallbackBlock.getLocation() + 
                         " facing " + direction + " with " + 
                         (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
                 } else if (canPlaceSign(fallbackBlock)) {
                     // Place a wall sign facing away from the bell (in the same direction as placement)
                     placeWallSign(fallbackBlock, direction, villageUuid, villageName);
                     
-                    plugin.getLogger().fine("Placed sign at bell level " + fallbackBlock.getLocation() + 
+                    logger.debug(LogCategory.GENERAL, "Placed sign at bell level " + fallbackBlock.getLocation() + 
                         " facing " + direction + " (away from bell) with " + 
                         (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
                 } else {
-                    plugin.getLogger().fine("Cannot place sign at " + signBlock.getLocation() + 
+                    logger.debug(LogCategory.GENERAL, "Cannot place sign at " + signBlock.getLocation() + 
                         " or " + fallbackBlock.getLocation() + " - blocks are not replaceable");
                 }
             }
@@ -153,7 +160,7 @@ public class SignManager {
     private void updateSign(Block block, BlockFace facing, UUID villageUuid, String villageName) {
         BlockState state = block.getState();
         if (!(state instanceof Sign sign)) {
-            plugin.getLogger().warning("Failed to get Sign state for block at " + block.getLocation());
+            logger.warning(LogCategory.GENERAL, "Failed to get Sign state for block at " + block.getLocation());
             return;
         }
         
@@ -165,7 +172,7 @@ public class SignManager {
             // Re-get the state after updating block data
             state = block.getState();
             if (!(state instanceof Sign updatedSign)) {
-                plugin.getLogger().warning("Failed to get Sign state after updating block data at " + block.getLocation());
+                logger.warning(LogCategory.GENERAL, "Failed to get Sign state after updating block data at " + block.getLocation());
                 return;
             }
             sign = updatedSign;
@@ -250,7 +257,7 @@ public class SignManager {
         // Get the block state and cast it to Sign AFTER setting the block data
         BlockState state = block.getState();
         if (!(state instanceof Sign sign)) {
-            plugin.getLogger().warning("Failed to get Sign state for block at " + block.getLocation());
+            logger.warning(LogCategory.GENERAL, "Failed to get Sign state for block at " + block.getLocation());
             return;
         }
         

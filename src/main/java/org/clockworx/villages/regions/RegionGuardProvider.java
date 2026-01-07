@@ -6,6 +6,8 @@ import org.bukkit.plugin.Plugin;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.lang.reflect.Method;
 import java.util.*;
@@ -31,6 +33,7 @@ import java.util.logging.Level;
 public class RegionGuardProvider implements RegionProvider {
     
     private final VillagesPlugin plugin;
+    private final PluginLogger logger;
     private Plugin regionGuardPlugin;
     private boolean available;
     
@@ -48,6 +51,7 @@ public class RegionGuardProvider implements RegionProvider {
      */
     public RegionGuardProvider(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         this.available = checkAvailability();
     }
     
@@ -77,7 +81,7 @@ public class RegionGuardProvider implements RegionProvider {
     public CompletableFuture<Void> initialize() {
         return CompletableFuture.runAsync(() -> {
             if (!available) {
-                plugin.getLogger().warning("RegionGuard not available");
+                logger.warning(LogCategory.REGION, "RegionGuard not available");
                 return;
             }
             
@@ -85,9 +89,10 @@ public class RegionGuardProvider implements RegionProvider {
                 // Attempt to cache reflection methods
                 // Note: Actual method names depend on RegionGuard version
                 cacheReflectionMethods();
-                plugin.getLogger().info("RegionGuard provider initialized");
+                logger.info(LogCategory.REGION, "RegionGuard provider initialized");
+                logger.debugRegion("RegionGuard provider ready");
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to initialize RegionGuard reflection", e);
+                logger.warning(LogCategory.REGION, "Failed to initialize RegionGuard reflection", e);
                 available = false;
             }
         });
@@ -103,7 +108,7 @@ public class RegionGuardProvider implements RegionProvider {
             Class<?> apiClass = Class.forName("com.regionguard.api.RegionGuardAPI");
             // Cache methods here once the API is known
         } catch (ClassNotFoundException e) {
-            plugin.getLogger().fine("RegionGuard API class not found - using fallback");
+            logger.debugRegion("RegionGuard API class not found - using fallback");
         }
     }
     
@@ -136,16 +141,17 @@ public class RegionGuardProvider implements RegionProvider {
                         boundary.getMaxX(), boundary.getMaxY(), boundary.getMaxZ()
                     );
                 } else {
-                    plugin.getLogger().warning("RegionGuard createRegion method not available");
+                    logger.warning(LogCategory.REGION, "RegionGuard createRegion method not available");
                     // Fall back to command-based creation if available
                     executeRegionCommand("create", regionId, village, boundary);
                 }
                 
-                plugin.getLogger().info("Created RegionGuard region: " + regionId);
+                logger.info(LogCategory.REGION, "Created RegionGuard region: " + regionId);
+                logger.debugRegion("RegionGuard region created: " + regionId + " for village " + village.getId());
                 return regionId;
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to create RegionGuard region", e);
+                logger.warning(LogCategory.REGION, "Failed to create RegionGuard region", e);
                 throw new RuntimeException("Failed to create region", e);
             }
         });
@@ -169,7 +175,7 @@ public class RegionGuardProvider implements RegionProvider {
                 
                 return true;
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to update RegionGuard region", e);
+                logger.warning(LogCategory.REGION, "Failed to update RegionGuard region", e);
                 return false;
             }
         });
@@ -192,11 +198,12 @@ public class RegionGuardProvider implements RegionProvider {
                     executeRegionCommand("delete", regionId, village, null);
                 }
                 
-                plugin.getLogger().info("Deleted RegionGuard region: " + regionId);
+                logger.info(LogCategory.REGION, "Deleted RegionGuard region: " + regionId);
+                logger.debugRegion("RegionGuard region deleted: " + regionId + " for village " + village.getId());
                 return true;
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to delete RegionGuard region", e);
+                logger.warning(LogCategory.REGION, "Failed to delete RegionGuard region", e);
                 return false;
             }
         });
@@ -261,7 +268,7 @@ public class RegionGuardProvider implements RegionProvider {
                 return true;
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to set RegionGuard flag", e);
+                logger.warning(LogCategory.REGION, "Failed to set RegionGuard flag", e);
                 return false;
             }
         });
@@ -338,7 +345,7 @@ public class RegionGuardProvider implements RegionProvider {
             });
             
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to execute RegionGuard command", e);
+            logger.warning(LogCategory.REGION, "Failed to execute RegionGuard command", e);
         }
     }
 }

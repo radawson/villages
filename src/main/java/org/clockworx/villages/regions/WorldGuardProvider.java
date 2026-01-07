@@ -17,6 +17,8 @@ import org.bukkit.World;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -40,6 +42,7 @@ import java.util.logging.Level;
 public class WorldGuardProvider implements RegionProvider {
     
     private final VillagesPlugin plugin;
+    private final PluginLogger logger;
     private boolean available;
     
     /**
@@ -49,6 +52,7 @@ public class WorldGuardProvider implements RegionProvider {
      */
     public WorldGuardProvider(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         this.available = checkAvailability();
     }
     
@@ -85,10 +89,11 @@ public class WorldGuardProvider implements RegionProvider {
     public CompletableFuture<Void> initialize() {
         return CompletableFuture.runAsync(() -> {
             if (!available) {
-                plugin.getLogger().warning("WorldGuard not available");
+                logger.warning(LogCategory.REGION, "WorldGuard not available");
                 return;
             }
-            plugin.getLogger().info("WorldGuard provider initialized");
+            logger.info(LogCategory.REGION, "WorldGuard provider initialized");
+            logger.debugRegion("WorldGuard provider ready");
         });
     }
     
@@ -146,11 +151,12 @@ public class WorldGuardProvider implements RegionProvider {
                 // Add region to manager
                 rm.addRegion(region);
                 
-                plugin.getLogger().info("Created WorldGuard region: " + regionId);
+                logger.info(LogCategory.REGION, "Created WorldGuard region: " + regionId);
+                logger.debugRegion("WorldGuard region created: " + regionId + " for village " + village.getId());
                 return regionId;
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to create WorldGuard region", e);
+                logger.warning(LogCategory.REGION, "Failed to create WorldGuard region", e);
                 throw new RuntimeException("Failed to create region", e);
             }
         });
@@ -198,11 +204,12 @@ public class WorldGuardProvider implements RegionProvider {
                 // Replace in manager
                 rm.addRegion(newRegion);
                 
-                plugin.getLogger().info("Updated WorldGuard region: " + regionId);
+                logger.info(LogCategory.REGION, "Updated WorldGuard region: " + regionId);
+                logger.debugRegion("WorldGuard region updated: " + regionId + " for village " + village.getId());
                 return true;
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to update WorldGuard region", e);
+                logger.warning(LogCategory.REGION, "Failed to update WorldGuard region", e);
                 return false;
             }
         });
@@ -228,11 +235,12 @@ public class WorldGuardProvider implements RegionProvider {
                 }
                 
                 rm.removeRegion(regionId);
-                plugin.getLogger().info("Deleted WorldGuard region: " + regionId);
+                logger.info(LogCategory.REGION, "Deleted WorldGuard region: " + regionId);
+                logger.debugRegion("WorldGuard region deleted: " + regionId + " for village " + village.getId());
                 return true;
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to delete WorldGuard region", e);
+                logger.warning(LogCategory.REGION, "Failed to delete WorldGuard region", e);
                 return false;
             }
         });
@@ -298,7 +306,7 @@ public class WorldGuardProvider implements RegionProvider {
                 return true;
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to set flag: " + flagName, e);
+                logger.warning(LogCategory.REGION, "Failed to set flag: " + flagName, e);
                 return false;
             }
         });
@@ -342,7 +350,7 @@ public class WorldGuardProvider implements RegionProvider {
                     StateFlag.State.ALLOW : StateFlag.State.DENY;
                 region.setFlag(Flags.BUILD, state);
             }
-            default -> plugin.getLogger().fine("Unknown flag: " + flagName);
+            default -> logger.debugRegion("Unknown flag: " + flagName);
         }
     }
     
@@ -415,7 +423,7 @@ public class WorldGuardProvider implements RegionProvider {
                 }
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to get all flags", e);
+                logger.warning(LogCategory.REGION, "Failed to get all flags", e);
             }
             
             return flags;
@@ -450,7 +458,7 @@ public class WorldGuardProvider implements RegionProvider {
                 return false;
                 
             } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to remove flag: " + flagName, e);
+                logger.warning(LogCategory.REGION, "Failed to remove flag: " + flagName, e);
                 return false;
             }
         });

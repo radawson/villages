@@ -13,6 +13,7 @@ import org.bukkit.block.sign.SignSide;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
 import java.util.List;
@@ -96,12 +97,15 @@ public class WelcomeSignPlacer {
      * @return Number of signs placed
      */
     public int placeSignsAtEntrances(Village village) {
+        logger.debug(LogCategory.GENERAL, "placeSignsAtEntrances called for village " + village.getId());
         World world = village.getWorld();
         if (world == null) {
+            logger.warning(LogCategory.GENERAL, "Cannot place signs: world is null for village " + village.getId());
             return 0;
         }
         
         int placed = 0;
+        logger.debug(LogCategory.GENERAL, "Placing signs at " + village.getEntrances().size() + " entrances");
         
         for (VillageEntrance entrance : village.getEntrances()) {
             if (placeSignAtEntrance(village, entrance, world)) {
@@ -114,6 +118,7 @@ public class WelcomeSignPlacer {
                 village.getDisplayName());
         }
         
+        logger.info(LogCategory.GENERAL, "Placed " + placed + " welcome signs for village " + village.getId());
         return placed;
     }
     
@@ -126,16 +131,20 @@ public class WelcomeSignPlacer {
      * @return true if sign was placed
      */
     public boolean placeSignAtEntrance(Village village, VillageEntrance entrance, World world) {
+        logger.debug(LogCategory.GENERAL, "Placing sign at entrance " + entrance.getX() + ", " + entrance.getY() + 
+            ", " + entrance.getZ() + " for village " + village.getId());
         try {
             // Get sign location (1 block behind entrance, facing outward)
             Block signBlock = findSignLocation(world, entrance);
             
             if (signBlock == null) {
+                logger.debug(LogCategory.GENERAL, "Could not find sign location for entrance");
                 return false;
             }
             
             // Check if we can place here
             if (!canPlaceSign(signBlock)) {
+                logger.debug(LogCategory.GENERAL, "Cannot place sign at " + signBlock.getLocation() + " - block not replaceable");
                 return false;
             }
             
@@ -154,6 +163,7 @@ public class WelcomeSignPlacer {
             if (state instanceof Sign sign) {
                 setSignText(sign, village);
                 sign.update();
+                logger.debug(LogCategory.GENERAL, "Sign placed successfully at " + signBlock.getLocation());
             }
             
             logDebug("Placed welcome sign at " + 

@@ -21,6 +21,8 @@ import org.clockworx.villages.model.VillageEntrance;
 import org.clockworx.villages.regions.RegionManager;
 import org.clockworx.villages.signs.WelcomeSignPlacer;
 import org.clockworx.villages.storage.StorageManager;
+import org.clockworx.villages.util.LogCategory;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +53,7 @@ public class VillageCommands {
     private final EntranceMarker entranceMarker;
     private final WelcomeSignPlacer signPlacer;
     private final SignManager signManager;
+    private final PluginLogger logger;
     
     /**
      * Creates a new VillageCommands handler.
@@ -71,6 +74,7 @@ public class VillageCommands {
         this.entranceMarker = entranceMarker;
         this.signPlacer = signPlacer;
         this.signManager = signManager;
+        this.logger = plugin.getPluginLogger();
     }
     
     /**
@@ -228,7 +232,9 @@ public class VillageCommands {
         return new CommandAPICommand("reload")
             .withPermission("villages.admin.reload")
             .executes((sender, args) -> {
+                logger.debugCommand("Executing /village reload command by " + sender.getName());
                 plugin.reloadPluginConfig();
+                logger.info(LogCategory.COMMAND, "Configuration reloaded by " + sender.getName());
                 sender.sendMessage(Component.text("Villages configuration reloaded.", NamedTextColor.GREEN));
             });
     }
@@ -320,12 +326,16 @@ public class VillageCommands {
     // ==================== Command Handlers ====================
     
     private void handleNameCommand(Player player, String name) {
+        logger.debugCommand("Executing /village name command by " + player.getName() + " with name: " + name);
+        
         if (name == null || name.trim().isEmpty()) {
+            logger.warning(LogCategory.COMMAND, "Village name command failed: empty name provided by " + player.getName());
             player.sendMessage(Component.text("Village name cannot be empty!", NamedTextColor.RED));
             return;
         }
         
         findNearestVillage(player).ifPresentOrElse(village -> {
+            logger.debugCommand("Found village " + village.getId() + " for naming by " + player.getName());
             village.setName(name.trim());
             
             storageManager.saveVillage(village).thenRun(() -> {
@@ -338,19 +348,25 @@ public class VillageCommands {
                     signManager.placeSignsAroundBell(bellLoc.getBlock(), village.getId(), name.trim());
                 }
                 
+                logger.info(LogCategory.COMMAND, "Village " + village.getId() + " named to '" + name.trim() + "' by " + player.getName());
                 player.sendMessage(Component.text("Village named: ", NamedTextColor.GREEN)
                     .append(Component.text(name.trim(), NamedTextColor.YELLOW)));
             });
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Village name command failed: no village found near " + player.getName() + " at " + player.getLocation());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleInfoCommand(Player player) {
+        logger.debugCommand("Executing /village info command by " + player.getName());
+        
         String version = plugin.getPluginMeta().getVersion();
         int villageCount = storageManager.getVillageCount().join();
         String storageType = storageManager.getActiveType().name();
         String regionProvider = regionManager.getProviderName();
+        
+        logger.debugCommand("Info command result: " + villageCount + " villages, storage: " + storageType + ", region: " + regionProvider);
         
         Component message = Component.text()
             .append(Component.text("=== Villages Plugin Info ===\n", NamedTextColor.GOLD))
@@ -371,13 +387,17 @@ public class VillageCommands {
     }
     
     private void handleBorderShowCommand(Player player, int duration) {
+        logger.debugCommand("Executing /village border show command by " + player.getName() + " with duration: " + duration);
+        
         findNearestVillage(player).ifPresentOrElse(village -> {
             if (!village.hasBoundary()) {
+                logger.warning(LogCategory.COMMAND, "Border show command failed: village " + village.getId() + " has no boundary");
                 player.sendMessage(Component.text("Village has no calculated boundary.", NamedTextColor.RED));
                 return;
             }
             
             VillageBoundary boundary = village.getBoundary();
+            logger.debugCommand("Showing boundary for village " + village.getId() + " to " + player.getName() + " for " + duration + " seconds");
             
             // Show particles along the boundary
             showBoundaryParticles(player, boundary, duration);
@@ -385,6 +405,7 @@ public class VillageCommands {
             player.sendMessage(Component.text("Showing village boundary for " + duration + " seconds.", NamedTextColor.GREEN));
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Border show command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
@@ -428,38 +449,52 @@ public class VillageCommands {
     }
     
     private void handleBorderRecalculateCommand(Player player) {
+        logger.debugCommand("Executing /village border recalculate command by " + player.getName());
+        
         findNearestVillage(player).ifPresentOrElse(village -> {
             Location bellLoc = village.getBellLocation();
             if (bellLoc == null) {
+                logger.warning(LogCategory.COMMAND, "Border recalculate command failed: no bell location for village " + village.getId());
                 player.sendMessage(Component.text("Could not find village bell.", NamedTextColor.RED));
                 return;
             }
             
+            logger.debugCommand("Recalculating boundary for village " + village.getId() + " by " + player.getName());
             VillageBoundary newBoundary = boundaryCalculator.calculateAndPopulate(village);
             
             if (newBoundary != null) {
                 village.setBoundary(newBoundary);
                 storageManager.saveVillage(village).thenRun(() -> {
+                    logger.info(LogCategory.COMMAND, "Village " + village.getId() + " boundary recalculated by " + player.getName() + 
+                        " - Size: " + newBoundary.getWidth() + " x " + newBoundary.getHeight() + " x " + newBoundary.getDepth());
                     player.sendMessage(Component.text("Village boundary recalculated.", NamedTextColor.GREEN));
                     player.sendMessage(Component.text("Size: " + newBoundary.getWidth() + " x " + 
                         newBoundary.getHeight() + " x " + newBoundary.getDepth(), NamedTextColor.GRAY));
                 });
             } else {
+                logger.warning(LogCategory.COMMAND, "Border recalculate command failed: boundary calculation returned null for village " + village.getId());
                 player.sendMessage(Component.text("Failed to calculate boundary.", NamedTextColor.RED));
             }
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Border recalculate command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleEntranceAddCommand(Player player) {
+        logger.debugCommand("Executing /village entrance add command by " + player.getName() + " at " + player.getLocation());
+        
         findNearestVillage(player).ifPresentOrElse(village -> {
             Optional<VillageEntrance> entrance = entranceMarker.markEntrance(player, village);
             
             if (entrance.isPresent()) {
+                VillageEntrance e = entrance.get();
+                logger.debugCommand("Entrance marked for village " + village.getId() + " at " + e.getX() + ", " + e.getY() + ", " + e.getZ());
+                
                 storageManager.saveVillage(village).thenRun(() -> {
-                    VillageEntrance e = entrance.get();
+                    logger.info(LogCategory.COMMAND, "Entrance added to village " + village.getId() + " by " + player.getName() + 
+                        " at " + e.getX() + ", " + e.getY() + ", " + e.getZ() + " facing " + e.getFacing());
                     player.sendMessage(Component.text("Entrance marked at: " + 
                         e.getX() + ", " + e.getY() + ", " + e.getZ() + 
                         " facing " + e.getFacing(), NamedTextColor.GREEN));
@@ -468,22 +503,30 @@ public class VillageCommands {
                     signPlacer.placeSignAtEntrance(village, e, player.getWorld());
                 });
             } else {
+                logger.warning(LogCategory.COMMAND, "Entrance add command failed: could not mark entrance for village " + village.getId() + " by " + player.getName());
                 player.sendMessage(Component.text("Could not mark entrance. " +
                     "Make sure you're near the village boundary.", NamedTextColor.RED));
             }
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Entrance add command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleEntranceRemoveCommand(Player player) {
+        logger.debugCommand("Executing /village entrance remove command by " + player.getName() + " at " + player.getLocation());
+        
         findNearestVillage(player).ifPresentOrElse(village -> {
             Optional<VillageEntrance> removed = entranceMarker.removeNearestEntrance(player, village, 10);
             
             if (removed.isPresent()) {
+                VillageEntrance e = removed.get();
+                logger.debugCommand("Entrance removed for village " + village.getId() + " at " + e.getX() + ", " + e.getY() + ", " + e.getZ());
+                
                 storageManager.saveVillage(village).thenRun(() -> {
-                    VillageEntrance e = removed.get();
+                    logger.info(LogCategory.COMMAND, "Entrance removed from village " + village.getId() + " by " + player.getName() + 
+                        " at " + e.getX() + ", " + e.getY() + ", " + e.getZ());
                     player.sendMessage(Component.text("Entrance removed at: " + 
                         e.getX() + ", " + e.getY() + ", " + e.getZ(), NamedTextColor.GREEN));
                     
@@ -491,17 +534,23 @@ public class VillageCommands {
                     signPlacer.removeSignAtEntrance(e, player.getWorld());
                 });
             } else {
+                logger.warning(LogCategory.COMMAND, "Entrance remove command failed: no entrance found within 10 blocks for village " + village.getId());
                 player.sendMessage(Component.text("No entrance found within 10 blocks.", NamedTextColor.RED));
             }
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Entrance remove command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleEntranceListCommand(Player player) {
+        logger.debugCommand("Executing /village entrance list command by " + player.getName());
+        
         findNearestVillage(player).ifPresentOrElse(village -> {
             List<VillageEntrance> entrances = village.getEntrances();
+            
+            logger.debugCommand("Listing " + entrances.size() + " entrances for village " + village.getId());
             
             if (entrances.isEmpty()) {
                 player.sendMessage(Component.text("Village has no entrances.", NamedTextColor.YELLOW));
@@ -519,16 +568,22 @@ public class VillageCommands {
             }
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Entrance list command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleEntranceDetectCommand(Player player) {
+        logger.debugCommand("Executing /village entrance detect command by " + player.getName());
+        
         findNearestVillage(player).ifPresentOrElse(village -> {
+            logger.debugCommand("Detecting entrances for village " + village.getId());
             List<VillageEntrance> detected = entranceDetector.detectAndUpdate(village);
             
             storageManager.saveVillage(village).thenRun(() -> {
                 int autoCount = (int) detected.stream().filter(VillageEntrance::isAutoDetected).count();
+                logger.info(LogCategory.COMMAND, "Entrance detection completed for village " + village.getId() + 
+                    " by " + player.getName() + " - detected " + autoCount + " entrances");
                 player.sendMessage(Component.text("Detected " + autoCount + " entrances.", NamedTextColor.GREEN));
                 
                 // Place signs at new entrances
@@ -536,62 +591,83 @@ public class VillageCommands {
             });
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Entrance detect command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleRegionCreateCommand(Player player) {
+        logger.debugCommand("Executing /village region create command by " + player.getName());
+        
         if (!regionManager.isAvailable()) {
+            logger.warning(LogCategory.COMMAND, "Region create command failed: no region plugin available");
             player.sendMessage(Component.text("No region plugin available.", NamedTextColor.RED));
             return;
         }
         
         findNearestVillage(player).ifPresentOrElse(village -> {
             if (!village.hasBoundary()) {
+                logger.warning(LogCategory.COMMAND, "Region create command failed: village " + village.getId() + " has no boundary");
                 player.sendMessage(Component.text("Village has no boundary. Recalculate first.", NamedTextColor.RED));
                 return;
             }
             
+            logger.debugCommand("Creating region for village " + village.getId() + " by " + player.getName());
             regionManager.createRegionWithDefaults(village, village.getBoundary())
                 .thenAccept(regionId -> {
                     if (regionId.isPresent()) {
                         village.setRegionId(regionId.get());
                         storageManager.saveVillage(village);
+                        logger.info(LogCategory.COMMAND, "Region created for village " + village.getId() + 
+                            " by " + player.getName() + " - region ID: " + regionId.get());
                         player.sendMessage(Component.text("Region created: " + regionId.get(), NamedTextColor.GREEN));
                     } else {
+                        logger.warning(LogCategory.COMMAND, "Region create command failed: region creation returned empty for village " + village.getId());
                         player.sendMessage(Component.text("Failed to create region.", NamedTextColor.RED));
                     }
                 });
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Region create command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleRegionDeleteCommand(Player player) {
+        logger.debugCommand("Executing /village region delete command by " + player.getName());
+        
         if (!regionManager.isAvailable()) {
+            logger.warning(LogCategory.COMMAND, "Region delete command failed: no region plugin available");
             player.sendMessage(Component.text("No region plugin available.", NamedTextColor.RED));
             return;
         }
         
         findNearestVillage(player).ifPresentOrElse(village -> {
+            logger.debugCommand("Deleting region for village " + village.getId() + " by " + player.getName());
             regionManager.deleteRegion(village).thenAccept(deleted -> {
                 if (deleted) {
                     village.setRegionId(null);
                     storageManager.saveVillage(village);
+                    logger.info(LogCategory.COMMAND, "Region deleted for village " + village.getId() + " by " + player.getName());
                     player.sendMessage(Component.text("Region deleted.", NamedTextColor.GREEN));
                 } else {
+                    logger.warning(LogCategory.COMMAND, "Region delete command failed: no region found for village " + village.getId());
                     player.sendMessage(Component.text("No region found to delete.", NamedTextColor.RED));
                 }
             });
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Region delete command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleRegionFlagsCommand(Player player, String flag, String value) {
+        logger.debugCommand("Executing /village region flags command by " + player.getName() + 
+            " with flag: " + flag + ", value: " + value);
+        
         if (!regionManager.isAvailable()) {
+            logger.warning(LogCategory.COMMAND, "Region flags command failed: no region plugin available");
             player.sendMessage(Component.text("No region plugin available.", NamedTextColor.RED));
             return;
         }
@@ -599,7 +675,9 @@ public class VillageCommands {
         findNearestVillage(player).ifPresentOrElse(village -> {
             if (flag == null) {
                 // List flags
+                logger.debugCommand("Listing all flags for village " + village.getId());
                 regionManager.getProvider().getAllFlags(village).thenAccept(flags -> {
+                    logger.debugCommand("Found " + flags.size() + " flags for village " + village.getId());
                     if (flags.isEmpty()) {
                         player.sendMessage(Component.text("No flags set on this region.", NamedTextColor.YELLOW));
                         return;
@@ -613,63 +691,85 @@ public class VillageCommands {
                 });
             } else if (value == null) {
                 // Get specific flag
+                logger.debugCommand("Getting flag '" + flag + "' for village " + village.getId());
                 regionManager.getFlag(village, flag).thenAccept(flagValue -> {
                     if (flagValue.isPresent()) {
+                        logger.debugCommand("Flag '" + flag + "' = '" + flagValue.get() + "' for village " + village.getId());
                         player.sendMessage(Component.text(flag + ": ", NamedTextColor.GRAY)
                             .append(Component.text(flagValue.get(), NamedTextColor.WHITE)));
                     } else {
+                        logger.debugCommand("Flag '" + flag + "' not set for village " + village.getId());
                         player.sendMessage(Component.text("Flag not set: " + flag, NamedTextColor.YELLOW));
                     }
                 });
             } else {
                 // Set flag
+                logger.debugCommand("Setting flag '" + flag + "' = '" + value + "' for village " + village.getId());
                 regionManager.setFlag(village, flag, value).thenAccept(success -> {
                     if (success) {
+                        logger.info(LogCategory.COMMAND, "Flag '" + flag + "' set to '" + value + 
+                            "' for village " + village.getId() + " by " + player.getName());
                         player.sendMessage(Component.text("Flag set: " + flag + " = " + value, NamedTextColor.GREEN));
                     } else {
+                        logger.warning(LogCategory.COMMAND, "Region flags command failed: could not set flag '" + 
+                            flag + "' for village " + village.getId());
                         player.sendMessage(Component.text("Failed to set flag.", NamedTextColor.RED));
                     }
                 });
             }
             
         }, () -> {
+            logger.warning(LogCategory.COMMAND, "Region flags command failed: no village found near " + player.getName());
             player.sendMessage(Component.text("No village found nearby.", NamedTextColor.RED));
         });
     }
     
     private void handleMigrateCommand(org.bukkit.command.CommandSender sender, String from, String to) {
+        logger.debugCommand("Executing /village migrate command by " + sender.getName() + " from " + from + " to " + to);
+        
         try {
             StorageManager.StorageType fromType = StorageManager.StorageType.fromId(from);
             StorageManager.StorageType toType = StorageManager.StorageType.fromId(to);
             
+            logger.info(LogCategory.COMMAND, "Starting migration from " + fromType + " to " + toType + " by " + sender.getName());
             sender.sendMessage(Component.text("Starting migration from " + fromType + " to " + toType + "...", NamedTextColor.YELLOW));
             
             storageManager.migrateData(fromType, toType).thenAccept(count -> {
+                logger.info(LogCategory.COMMAND, "Migration completed by " + sender.getName() + " - migrated " + count + " villages");
                 sender.sendMessage(Component.text("Migration complete! Migrated " + count + " villages.", NamedTextColor.GREEN));
             }).exceptionally(ex -> {
+                logger.severe(LogCategory.COMMAND, "Migration failed by " + sender.getName() + ": " + ex.getMessage(), ex);
                 sender.sendMessage(Component.text("Migration failed: " + ex.getMessage(), NamedTextColor.RED));
                 return null;
             });
             
         } catch (Exception e) {
+            logger.warning(LogCategory.COMMAND, "Migration command failed: invalid storage type - from: " + from + ", to: " + to);
             sender.sendMessage(Component.text("Invalid storage type. Use: yaml, sqlite, mysql", NamedTextColor.RED));
         }
     }
     
     private void handleBackupCommand(org.bukkit.command.CommandSender sender) {
+        logger.debugCommand("Executing /village backup command by " + sender.getName());
+        
         String timestamp = java.time.LocalDateTime.now().format(
             java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         String backupPath = plugin.getDataFolder().getPath() + "/backups/villages_" + timestamp;
         
+        logger.info(LogCategory.COMMAND, "Creating backup by " + sender.getName() + " to: " + backupPath);
         storageManager.backup(backupPath).thenRun(() -> {
+            logger.info(LogCategory.COMMAND, "Backup created successfully by " + sender.getName() + " at: " + backupPath);
             sender.sendMessage(Component.text("Backup created: " + backupPath, NamedTextColor.GREEN));
         }).exceptionally(ex -> {
+            logger.severe(LogCategory.COMMAND, "Backup failed by " + sender.getName() + ": " + ex.getMessage(), ex);
             sender.sendMessage(Component.text("Backup failed: " + ex.getMessage(), NamedTextColor.RED));
             return null;
         });
     }
     
     private void handleDebugStatusCommand(org.bukkit.command.CommandSender sender) {
+        logger.debugCommand("Executing /village debug command by " + sender.getName());
+        
         ConfigManager config = plugin.getConfigManager();
         
         Component message = Component.text()
@@ -704,23 +804,28 @@ public class VillageCommands {
     }
     
     private void handleDebugToggleCommand(org.bukkit.command.CommandSender sender, boolean enable) {
+        logger.debugCommand("Executing /village debug " + (enable ? "on" : "off") + " command by " + sender.getName());
+        
         ConfigManager config = plugin.getConfigManager();
         config.setDebugEnabled(enable);
         
         if (enable) {
             sender.sendMessage(Component.text("Debug logging ENABLED", NamedTextColor.GREEN));
-            plugin.getPluginLogger().info("Debug logging enabled by " + sender.getName());
+            logger.info(LogCategory.COMMAND, "Debug logging enabled by " + sender.getName());
         } else {
             sender.sendMessage(Component.text("Debug logging DISABLED", NamedTextColor.YELLOW));
-            plugin.getLogger().info("Debug logging disabled by " + sender.getName());
+            logger.info(LogCategory.COMMAND, "Debug logging disabled by " + sender.getName());
         }
     }
     
     private void handleDebugCategoryToggle(org.bukkit.command.CommandSender sender, String category) {
+        logger.debugCommand("Executing /village debug " + category + " command by " + sender.getName());
+        
         ConfigManager config = plugin.getConfigManager();
         
         // Ensure debug is enabled first
         if (!config.isDebugEnabled()) {
+            logger.warning(LogCategory.COMMAND, "Debug category toggle failed: debug is disabled");
             sender.sendMessage(Component.text("Debug is disabled. Enable with /village debug on", NamedTextColor.YELLOW));
             return;
         }
@@ -750,11 +855,13 @@ public class VillageCommands {
                 categoryName = "Entrances";
             }
             default -> {
+                logger.warning(LogCategory.COMMAND, "Debug category toggle failed: unknown category '" + category + "'");
                 sender.sendMessage(Component.text("Unknown category: " + category, NamedTextColor.RED));
                 return;
             }
         }
         
+        logger.info(LogCategory.COMMAND, "Debug category '" + categoryName + "' logging " + (newState ? "enabled" : "disabled") + " by " + sender.getName());
         sender.sendMessage(Component.text(categoryName + " logging: ", NamedTextColor.GRAY)
             .append(Component.text(newState ? "ENABLED" : "DISABLED", 
                 newState ? NamedTextColor.GREEN : NamedTextColor.YELLOW)));

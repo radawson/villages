@@ -5,6 +5,93 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - Comprehensive Logging Implementation
+
+### Added
+
+#### Comprehensive Logging Coverage
+- **Command Logging** - All command handlers now log execution flow, parameters, and results
+  - Entry/exit logging for all commands
+  - Parameter validation logging
+  - Success and failure logging with context
+  - Command category logging for all village commands (name, info, border, entrance, region, admin, debug)
+
+- **Manager Logging** - Detailed logging throughout all manager classes
+  - **VillageManager**: Village creation, loading, saving, boundary recalculation, naming operations
+  - **SignManager**: Sign placement, updates, and state management
+  - All operations include debug-level flow tracking and info-level success messages
+
+- **Storage Provider Logging** - Complete CRUD operation logging
+  - **YamlStorageProvider**: File operations, serialization, cache management, backup operations
+  - **SQLiteStorageProvider**: Database operations, transactions, migrations, connection management
+  - **MySQLStorageProvider**: Connection pool operations, queries, migrations, backup operations
+  - All storage operations include debug logging for entry/exit, parameters, and results
+
+- **Region Provider Logging** - Region operation tracking
+  - **WorldGuardProvider**: Region creation, updates, deletion, flag operations
+  - **RegionGuardProvider**: Reflection-based operations, command execution, region management
+  - Debug logging for all region plugin interactions
+
+- **Detection Component Logging** - Enhanced logging for detection algorithms
+  - **VillageBoundaryCalculator**: POI collection, boundary calculation steps, bounding box computation
+  - **EntranceDetector**: Edge scanning, path detection, entrance merging
+  - **EntranceMarker**: Manual entrance marking, validation, facing calculation
+  - **WelcomeSignPlacer**: Sign placement operations, location finding, text setting
+
+- **Event Listener Logging** - Chunk event processing
+  - **VillageChunkListener**: Chunk load events, bell detection, village processing
+  - Bell count tracking and village discovery logging
+
+- **Configuration Logging** - Config reload and validation
+  - **ConfigManager**: Configuration reload operations, invalid value warnings
+  - Debug logging for config changes
+
+#### Logging System Enhancements
+- Added `warning(LogCategory, String, Throwable)` method to PluginLogger for exception logging
+- All components now consistently use PluginLogger instead of direct `plugin.getLogger()` calls
+- Exception logging with full stack traces for error diagnosis
+- Verbose logging support for detailed algorithm step tracking
+
+### Changed
+- Replaced all direct `plugin.getLogger()` calls with `PluginLogger` throughout the codebase
+- Standardized logging patterns across all components
+- Enhanced error messages with context (village IDs, locations, operation types)
+- Improved log message clarity with operation-specific details
+
+### Technical Details
+
+#### Components Updated
+- `VillageCommands` - All command handlers
+- `VillageManager` - All village lifecycle operations
+- `SignManager` - Sign placement and updates
+- `VillageChunkListener` - Chunk event processing
+- `YamlStorageProvider` - File-based storage operations
+- `SQLiteStorageProvider` - SQLite database operations
+- `MySQLStorageProvider` - MySQL database operations
+- `WorldGuardProvider` - WorldGuard integration
+- `RegionGuardProvider` - RegionGuard integration
+- `ConfigManager` - Configuration management
+- `VillageBoundaryCalculator` - Boundary calculation algorithms
+- `EntranceDetector` - Entrance detection algorithms
+- `EntranceMarker` - Manual entrance marking
+- `WelcomeSignPlacer` - Sign placement operations
+
+#### Log Levels Used
+- **DEBUG**: Method entry/exit, parameter values, intermediate steps (only when debug enabled)
+- **INFO**: Successful operations, important state changes, operation completion
+- **WARNING**: Validation failures, missing data, non-fatal errors, fallback operations
+- **SEVERE**: Fatal errors, exceptions, critical system failures
+
+#### Log Categories
+- **COMMAND**: All command execution and validation
+- **STORAGE**: All storage provider operations (YAML, SQLite, MySQL)
+- **REGION**: All region plugin operations (WorldGuard, RegionGuard)
+- **BOUNDARY**: Boundary calculation and POI collection
+- **ENTRANCE**: Entrance detection and marking operations
+- **GENERAL**: General plugin operations, configuration, sign placement
+
+---
+
 ## [0.2.1] - Logging and Configuration System
 
 ### Added

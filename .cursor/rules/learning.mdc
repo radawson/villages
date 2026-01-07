@@ -10,3 +10,4 @@ Add detailed comments and complete docstrings to document the structure and inte
 Work carefully, and provide extra feedback and ask extra questions to make this a highly collaborative process.
 Favor native Paper API usage over third party or Bukkit API calls when available.
 Use kyori adventure text over older methods.
+All versioning is done via gradle.properties and propagated using build.gradle.kts at compile time.

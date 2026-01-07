@@ -9,6 +9,7 @@ import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
 import java.util.*;
@@ -90,12 +91,16 @@ public class EntranceDetector {
      * @return List of detected entrance points
      */
     public List<VillageEntrance> detectEntrances(Village village) {
+        logger.debugEntrance("detectEntrances called for village " + village.getId());
         if (!village.hasBoundary()) {
+            logger.debugEntrance("Village " + village.getId() + " has no boundary, cannot detect entrances");
             return Collections.emptyList();
         }
         
         VillageBoundary boundary = village.getBoundary();
         World world = village.getWorld();
+        logger.debugEntrance("Detecting entrances for village " + village.getId() + " with boundary size: " + 
+            boundary.getWidth() + " x " + boundary.getHeight() + " x " + boundary.getDepth());
         
         if (world == null) {
             return Collections.emptyList();
@@ -112,9 +117,11 @@ public class EntranceDetector {
             
             // Merge nearby entrances
             entrances = mergeNearbyEntrances(entrances);
+            logger.debugEntrance("Merged entrances, final count: " + entrances.size());
             
             logDebug("Detected " + entrances.size() + " entrances for village: " + 
                 village.getDisplayName());
+            logger.info(LogCategory.ENTRANCE, "Detected " + entrances.size() + " entrances for village " + village.getId());
             
         } catch (Exception e) {
             logWarning("Failed to detect entrances: " + e.getMessage());
@@ -358,15 +365,19 @@ public class EntranceDetector {
      * @return The updated list of entrances
      */
     public List<VillageEntrance> detectAndUpdate(Village village) {
+        logger.debugEntrance("detectAndUpdate called for village " + village.getId());
         // Get existing manual entrances
         List<VillageEntrance> manualEntrances = village.getManualEntrances();
+        logger.debugEntrance("Found " + manualEntrances.size() + " existing manual entrances");
         
         // Detect new auto entrances
         List<VillageEntrance> autoEntrances = detectEntrances(village);
+        logger.debugEntrance("Detected " + autoEntrances.size() + " auto entrances");
         
         // Combine
         List<VillageEntrance> allEntrances = new ArrayList<>(manualEntrances);
         allEntrances.addAll(autoEntrances);
+        logger.debugEntrance("Total entrances after update: " + allEntrances.size());
         
         // Update village
         village.setEntrances(allEntrances);

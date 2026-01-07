@@ -124,7 +124,7 @@ public class VillagesPlugin extends JavaPlugin {
         }
         
         // ===== Phase 5: Event Listeners =====
-        this.chunkListener = new VillageChunkListener(villageManager, signManager);
+        this.chunkListener = new VillageChunkListener(villageManager, signManager, this);
         getServer().getPluginManager().registerEvents(chunkListener, this);
         pluginLogger.debug(LogCategory.GENERAL, "Event listeners registered");
         

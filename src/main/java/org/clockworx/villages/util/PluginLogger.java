@@ -81,6 +81,17 @@ public class PluginLogger {
     }
     
     /**
+     * Logs a warning message with a category tag and exception.
+     * 
+     * @param category The log category
+     * @param message The message to log
+     * @param throwable The exception to include
+     */
+    public void warning(LogCategory category, String message, Throwable throwable) {
+        logger.log(Level.WARNING, formatWithCategory(category, message), throwable);
+    }
+    
+    /**
      * Logs a severe/error message.
      * Always logged regardless of debug settings.
      * 

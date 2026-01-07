@@ -8,6 +8,7 @@ import org.bukkit.entity.Player;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
 import java.util.List;
@@ -65,15 +66,19 @@ public class EntranceMarker {
      * @return The created entrance, or empty if marking failed
      */
     public Optional<VillageEntrance> markEntrance(Player player, Village village) {
+        logger.debugEntrance("markEntrance called by " + player.getName() + " for village " + village.getId() + 
+            " at " + player.getLocation());
         Location playerLoc = player.getLocation();
         
         // Validate player is near the village boundary
         if (!isNearBoundary(playerLoc, village)) {
+            logger.debugEntrance("Player " + player.getName() + " not near boundary, cannot mark entrance");
             return Optional.empty();
         }
         
         // Determine facing direction based on player's facing and village center
         BlockFace facing = calculateFacing(playerLoc, village);
+        logger.debugEntrance("Calculated facing direction: " + facing);
         
         // Create manual entrance
         VillageEntrance entrance = VillageEntrance.manual(
@@ -85,6 +90,8 @@ public class EntranceMarker {
         
         // Add to village
         village.addEntrance(entrance);
+        logger.info(LogCategory.ENTRANCE, "Entrance marked by " + player.getName() + " for village " + village.getId() + 
+            " at " + playerLoc.getBlockX() + ", " + playerLoc.getBlockY() + ", " + playerLoc.getBlockZ());
         
         logDebug("Player " + player.getName() + " marked entrance at " + 
             entrance.getX() + ", " + entrance.getY() + ", " + entrance.getZ() +

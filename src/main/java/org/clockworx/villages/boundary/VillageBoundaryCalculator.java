@@ -14,6 +14,7 @@ import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillagePoi;
+import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
 import java.util.*;
@@ -84,6 +85,7 @@ public class VillageBoundaryCalculator {
      * @return The calculated boundary, or null if calculation fails
      */
     public VillageBoundary calculateBoundary(Block bellBlock) {
+        logger.debugBoundary("Calculating boundary for bell at " + bellBlock.getLocation());
         World world = bellBlock.getWorld();
         Location bellLoc = bellBlock.getLocation();
         
@@ -91,12 +93,15 @@ public class VillageBoundaryCalculator {
             // Get NMS world and POI manager
             ServerLevel serverLevel = ((CraftWorld) world).getHandle();
             PoiManager poiManager = serverLevel.getPoiManager();
+            logger.verbose(LogCategory.BOUNDARY, "Got POI manager for world " + world.getName());
             
             // Collect all POIs that belong to this village
             List<BlockPos> villagePois = collectVillagePois(poiManager, bellLoc);
+            logger.debugBoundary("Collected " + villagePois.size() + " POIs for village");
             
             if (villagePois.isEmpty()) {
                 // No POIs found - use default boundary around bell
+                logger.debugBoundary("No POIs found, using default boundary around bell");
                 return VillageBoundary.fromCenter(
                     bellLoc.getBlockX(),
                     bellLoc.getBlockY(),
@@ -129,21 +134,27 @@ public class VillageBoundaryCalculator {
      * @return The calculated boundary with POIs added to the village
      */
     public VillageBoundary calculateAndPopulate(Village village) {
+        logger.debugBoundary("calculateAndPopulate called for village " + village.getId());
         Location bellLoc = village.getBellLocation();
         if (bellLoc == null || bellLoc.getWorld() == null) {
+            logger.warning(LogCategory.BOUNDARY, "Cannot calculate boundary: bell location is null for village " + village.getId());
             return null;
         }
         
         World world = bellLoc.getWorld();
+        logger.debugBoundary("Calculating boundary for village " + village.getId() + " at " + bellLoc);
         
         try {
             ServerLevel serverLevel = ((CraftWorld) world).getHandle();
             PoiManager poiManager = serverLevel.getPoiManager();
+            logger.verbose(LogCategory.BOUNDARY, "Got POI manager for village " + village.getId());
             
             // Collect POIs and their types
             List<PoiData> poiDataList = collectVillagePoisWithTypes(poiManager, bellLoc);
+            logger.debugBoundary("Collected " + poiDataList.size() + " POIs with types for village " + village.getId());
             
             if (poiDataList.isEmpty()) {
+                logger.debugBoundary("No POIs found, using default boundary for village " + village.getId());
                 return VillageBoundary.fromCenter(
                     bellLoc.getBlockX(),
                     bellLoc.getBlockY(),
@@ -164,11 +175,16 @@ public class VillageBoundaryCalculator {
                     data.pos.getZ()
                 ));
             }
+            logger.verbose(LogCategory.BOUNDARY, "Converted " + villagePois.size() + " POIs to VillagePoi objects");
             
             village.setPois(villagePois);
+            logger.debugBoundary("Added " + villagePois.size() + " POIs to village " + village.getId());
             
             // Calculate bounding box
-            return calculateBoundingBox(positions);
+            VillageBoundary boundary = calculateBoundingBox(positions);
+            logger.debugBoundary("Calculated boundary for village " + village.getId() + 
+                " - Size: " + boundary.getWidth() + " x " + boundary.getHeight() + " x " + boundary.getDepth());
+            return boundary;
             
         } catch (Exception e) {
             logWarning("Failed to calculate village boundary: " + e.getMessage());
