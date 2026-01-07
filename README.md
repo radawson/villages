@@ -92,6 +92,17 @@ See [docs/INSTALLATION.md](docs/INSTALLATION.md) for detailed setup instructions
 | `/village migrate <from> <to>` | `villages.admin.migrate` | Migrate storage backend |
 | `/village backup` | `villages.admin.backup` | Create data backup |
 
+### Debug Commands
+| Command | Permission | Description |
+|---------|------------|-------------|
+| `/village debug` | `villages.admin.debug` | Show current debug status |
+| `/village debug on` | `villages.admin.debug` | Enable debug logging |
+| `/village debug off` | `villages.admin.debug` | Disable debug logging |
+| `/village debug storage` | `villages.admin.debug` | Toggle storage logging |
+| `/village debug regions` | `villages.admin.debug` | Toggle region logging |
+| `/village debug boundaries` | `villages.admin.debug` | Toggle boundary logging |
+| `/village debug entrances` | `villages.admin.debug` | Toggle entrance logging |
+
 ## Configuration
 
 ```yaml
@@ -116,6 +127,15 @@ entrances:
 signs:
   auto-place: true
   material: OAK_WALL_SIGN
+
+# Debug logging
+debug:
+  enabled: false       # Master debug switch
+  verbose: false       # Extra detailed output
+  log-storage: false   # Storage operations
+  log-regions: false   # Region operations
+  log-boundaries: false # Boundary calculations
+  log-entrances: false  # Entrance detection
 ```
 
 ## Project Structure
@@ -128,6 +148,8 @@ villages/
 │   │   └── VillageBoundaryCalculator.java  # NMS POI scanning
 │   ├── commands/
 │   │   └── VillageCommands.java      # All commands
+│   ├── config/
+│   │   └── ConfigManager.java        # Typed config access
 │   ├── detection/
 │   │   ├── EntranceDetector.java     # Auto entrance detection
 │   │   └── EntranceMarker.java       # Manual entrance marking
@@ -143,12 +165,15 @@ villages/
 │   │   └── RegionGuardProvider.java  # RegionGuard implementation
 │   ├── signs/
 │   │   └── WelcomeSignPlacer.java    # Welcome sign placement
-│   └── storage/
-│       ├── StorageProvider.java      # Storage abstraction
-│       ├── StorageManager.java       # Provider management
-│       ├── YamlStorageProvider.java  # YAML file storage
-│       ├── SQLiteStorageProvider.java # SQLite database
-│       └── MySQLStorageProvider.java  # MySQL database
+│   ├── storage/
+│   │   ├── StorageProvider.java      # Storage abstraction
+│   │   ├── StorageManager.java       # Provider management
+│   │   ├── YamlStorageProvider.java  # YAML file storage
+│   │   ├── SQLiteStorageProvider.java # SQLite database
+│   │   └── MySQLStorageProvider.java  # MySQL database
+│   └── util/
+│       ├── LogCategory.java          # Log category enum
+│       └── PluginLogger.java         # Enhanced logging
 └── docs/
     ├── ARCHITECTURE.md               # System architecture
     ├── CHANGELOG.md                  # Version history

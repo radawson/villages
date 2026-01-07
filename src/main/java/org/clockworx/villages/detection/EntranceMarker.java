@@ -8,6 +8,7 @@ import org.bukkit.entity.Player;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +28,7 @@ import java.util.Optional;
 public class EntranceMarker {
     
     private final VillagesPlugin plugin;
+    private PluginLogger logger;
     
     /** Material used as entrance marker block (if block-based marking is enabled) */
     private Material markerMaterial;
@@ -41,6 +43,7 @@ public class EntranceMarker {
      */
     public EntranceMarker(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         loadConfiguration();
     }
     
@@ -83,7 +86,7 @@ public class EntranceMarker {
         // Add to village
         village.addEntrance(entrance);
         
-        plugin.getLogger().info("Player " + player.getName() + " marked entrance at " + 
+        logDebug("Player " + player.getName() + " marked entrance at " + 
             entrance.getX() + ", " + entrance.getY() + ", " + entrance.getZ() +
             " facing " + facing);
         
@@ -128,7 +131,7 @@ public class EntranceMarker {
         
         if (nearest != null) {
             village.removeEntrance(nearest);
-            plugin.getLogger().info("Removed entrance at " + 
+            logDebug("Removed entrance at " + 
                 nearest.getX() + ", " + nearest.getY() + ", " + nearest.getZ());
             return Optional.of(nearest);
         }
@@ -251,7 +254,7 @@ public class EntranceMarker {
         VillageEntrance entrance = VillageEntrance.manual(block.getLocation(), facing);
         village.addEntrance(entrance);
         
-        plugin.getLogger().info("Block-based entrance marker placed at " + 
+        logDebug("Block-based entrance marker placed at " + 
             block.getX() + ", " + block.getY() + ", " + block.getZ());
     }
     
@@ -278,7 +281,7 @@ public class EntranceMarker {
                 !entrance.isAutoDetected()) {
                 
                 village.removeEntrance(entrance);
-                plugin.getLogger().info("Entrance marker removed at " + 
+                logDebug("Entrance marker removed at " + 
                     block.getX() + ", " + block.getY() + ", " + block.getZ());
                 break;
             }
@@ -289,6 +292,15 @@ public class EntranceMarker {
      * Reloads configuration.
      */
     public void reload() {
+        this.logger = plugin.getPluginLogger();
         loadConfiguration();
+    }
+    
+    // ==================== Logging Helpers ====================
+    
+    private void logDebug(String message) {
+        if (logger != null) {
+            logger.debugEntrance(message);
+        }
     }
 }

@@ -3,12 +3,12 @@ package org.clockworx.villages.storage;
 import org.bukkit.World;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
 
 /**
  * Manages storage provider lifecycle and operations.
@@ -37,6 +37,7 @@ import java.util.logging.Level;
 public class StorageManager {
     
     private final VillagesPlugin plugin;
+    private PluginLogger logger;
     private StorageProvider activeProvider;
     private StorageType activeType;
     
@@ -88,11 +89,14 @@ public class StorageManager {
      * @return CompletableFuture that completes when initialization is done
      */
     public CompletableFuture<Void> initialize() {
+        // Get logger (may be null during early init)
+        this.logger = plugin.getPluginLogger();
+        
         // Read storage type from config (default to SQLite)
         String typeId = plugin.getConfig().getString("storage.type", "sqlite");
         this.activeType = StorageType.fromId(typeId);
         
-        plugin.getLogger().info("Initializing storage provider: " + activeType.name());
+        logInfo("Initializing storage provider: " + activeType.name());
         
         // Create the appropriate provider
         this.activeProvider = createProvider(activeType);
@@ -100,10 +104,10 @@ public class StorageManager {
         // Initialize the provider
         return activeProvider.initialize()
             .thenRun(() -> {
-                plugin.getLogger().info("Storage provider initialized: " + activeProvider.getName());
+                logInfo("Storage provider initialized: " + activeProvider.getName());
             })
             .exceptionally(ex -> {
-                plugin.getLogger().log(Level.SEVERE, "Failed to initialize storage provider", ex);
+                logSevere("Failed to initialize storage provider", ex);
                 throw new StorageException("Storage initialization failed", ex);
             });
     }
@@ -115,13 +119,13 @@ public class StorageManager {
      */
     public CompletableFuture<Void> shutdown() {
         if (activeProvider != null) {
-            plugin.getLogger().info("Shutting down storage provider: " + activeProvider.getName());
+            logInfo("Shutting down storage provider: " + activeProvider.getName());
             return activeProvider.shutdown()
                 .thenRun(() -> {
-                    plugin.getLogger().info("Storage provider shut down successfully");
+                    logInfo("Storage provider shut down successfully");
                 })
                 .exceptionally(ex -> {
-                    plugin.getLogger().log(Level.WARNING, "Error during storage shutdown", ex);
+                    logWarning("Error during storage shutdown: " + ex.getMessage());
                     return null;
                 });
         }
@@ -286,7 +290,7 @@ public class StorageManager {
             return CompletableFuture.completedFuture(0);
         }
         
-        plugin.getLogger().info("Starting migration from " + fromType + " to " + toType);
+        logInfo("Starting migration from " + fromType + " to " + toType);
         
         StorageProvider source = createProvider(fromType);
         StorageProvider target = createProvider(toType);
@@ -295,17 +299,17 @@ public class StorageManager {
             .thenCompose(v -> target.initialize())
             .thenCompose(v -> source.exportAll())
             .thenCompose(villages -> {
-                plugin.getLogger().info("Exporting " + villages.size() + " villages for migration");
+                logInfo("Exporting " + villages.size() + " villages for migration");
                 return target.importAll(villages, true);
             })
             .thenCompose(count -> {
-                plugin.getLogger().info("Migration complete: " + count + " villages migrated");
+                logInfo("Migration complete: " + count + " villages migrated");
                 return source.shutdown()
                     .thenCompose(v -> target.shutdown())
                     .thenApply(v -> count);
             })
             .exceptionally(ex -> {
-                plugin.getLogger().log(Level.SEVERE, "Migration failed", ex);
+                logSevere("Migration failed", ex);
                 throw new StorageException("Migration failed", ex);
             });
     }
@@ -318,5 +322,42 @@ public class StorageManager {
      */
     public CompletableFuture<Void> backup(String backupPath) {
         return getProvider().backup(backupPath);
+    }
+    
+    // ==================== Logging Helpers ====================
+    
+    private void logInfo(String message) {
+        if (logger != null) {
+            logger.info(message);
+        } else {
+            plugin.getLogger().info(message);
+        }
+    }
+    
+    private void logWarning(String message) {
+        if (logger != null) {
+            logger.warning(message);
+        } else {
+            plugin.getLogger().warning(message);
+        }
+    }
+    
+    private void logSevere(String message, Throwable ex) {
+        if (logger != null) {
+            logger.severe(message, ex);
+        } else {
+            plugin.getLogger().severe(message + ": " + ex.getMessage());
+        }
+    }
+    
+    /**
+     * Logs a debug message for storage operations.
+     * 
+     * @param message The message to log
+     */
+    public void logDebug(String message) {
+        if (logger != null) {
+            logger.debugStorage(message);
+        }
     }
 }

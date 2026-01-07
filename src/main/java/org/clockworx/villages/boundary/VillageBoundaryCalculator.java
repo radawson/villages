@@ -14,9 +14,9 @@ import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillagePoi;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.*;
-import java.util.logging.Level;
 import java.util.stream.Stream;
 
 /**
@@ -42,6 +42,7 @@ import java.util.stream.Stream;
 public class VillageBoundaryCalculator {
     
     private final VillagesPlugin plugin;
+    private PluginLogger logger;
     
     // Minecraft village boundary constants
     /** Initial horizontal radius from first POI (blocks) */
@@ -66,6 +67,7 @@ public class VillageBoundaryCalculator {
      */
     public VillageBoundaryCalculator(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
     }
     
     /**
@@ -108,7 +110,7 @@ public class VillageBoundaryCalculator {
             return calculateBoundingBox(villagePois);
             
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to calculate village boundary", e);
+            logWarning("Failed to calculate village boundary: " + e.getMessage());
             // Fallback to default boundary
             return VillageBoundary.fromCenter(
                 bellLoc.getBlockX(),
@@ -169,7 +171,7 @@ public class VillageBoundaryCalculator {
             return calculateBoundingBox(positions);
             
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to calculate village boundary", e);
+            logWarning("Failed to calculate village boundary: " + e.getMessage());
             return VillageBoundary.fromCenter(
                 bellLoc.getBlockX(),
                 bellLoc.getBlockY(),
@@ -308,7 +310,7 @@ public class VillageBoundaryCalculator {
                 return key.get().registry().getPath();
             }
         } catch (Exception e) {
-            plugin.getLogger().fine("Could not get POI type name: " + e.getMessage());
+            logDebug("Could not get POI type name: " + e.getMessage());
         }
         return "unknown";
     }
@@ -387,7 +389,7 @@ public class VillageBoundaryCalculator {
             ).forEach(record -> bells.add(record.getPos()));
             
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to find bells", e);
+            logWarning("Failed to find bells: " + e.getMessage());
         }
         
         return bells;
@@ -415,4 +417,20 @@ public class VillageBoundaryCalculator {
      * Helper class to hold POI position and type data.
      */
     private record PoiData(BlockPos pos, String type) {}
+    
+    // ==================== Logging Helpers ====================
+    
+    private void logWarning(String message) {
+        if (logger != null) {
+            logger.warning(message);
+        } else {
+            plugin.getLogger().warning(message);
+        }
+    }
+    
+    private void logDebug(String message) {
+        if (logger != null) {
+            logger.debugBoundary(message);
+        }
+    }
 }

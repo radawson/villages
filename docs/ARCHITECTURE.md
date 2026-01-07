@@ -20,26 +20,28 @@ The Villages plugin provides comprehensive village management for Minecraft serv
 │                           (Main Plugin Class)                                │
 └─────────────────┬───────────────────────────────────────────────────────────┘
                   │
-    ┌─────────────┼─────────────┬──────────────┬──────────────┐
-    │             │             │              │              │
-    ▼             ▼             ▼              ▼              ▼
-┌─────────┐ ┌──────────┐ ┌───────────┐ ┌────────────┐ ┌────────────┐
-│ Storage │ │ Boundary │ │  Region   │ │ Detection  │ │  Commands  │
-│ Manager │ │Calculator│ │  Manager  │ │  System    │ │            │
-└────┬────┘ └────┬─────┘ └─────┬─────┘ └─────┬──────┘ └────────────┘
-     │           │             │             │
-     ▼           ▼             ▼             ▼
-┌─────────┐ ┌─────────┐ ┌───────────┐ ┌─────────────┐
-│Provider │ │NMS POI  │ │ Provider  │ │ Entrance    │
-│Interface│ │Access   │ │ Interface │ │ Detector    │
-└────┬────┘ └─────────┘ └─────┬─────┘ │ & Marker    │
-     │                        │       └──────┬──────┘
-     ├───────────┬───────────┐│              │
-     ▼           ▼           ▼▼              ▼
-┌────────┐ ┌────────┐ ┌───────────────┐ ┌─────────────┐
-│  YAML  │ │ SQLite │ │  WorldGuard   │ │  Welcome    │
-│Provider│ │Provider│ │   Provider    │ │  Signs      │
-└────────┘ └────────┘ └───────────────┘ └─────────────┘
+    ┌─────────────┼─────────────┬──────────────┬──────────────┬──────────────┐
+    │             │             │              │              │              │
+    ▼             ▼             ▼              ▼              ▼              ▼
+┌─────────┐ ┌──────────┐ ┌───────────┐ ┌────────────┐ ┌────────────┐ ┌────────┐
+│ Config  │ │ Plugin   │ │ Storage   │ │  Region    │ │ Detection  │ │Commands│
+│ Manager │ │ Logger   │ │ Manager   │ │  Manager   │ │  System    │ │        │
+└────┬────┘ └────┬─────┘ └─────┬─────┘ └─────┬──────┘ └─────┬──────┘ └────────┘
+     │           │             │             │              │
+     │           │             ▼             ▼              ▼
+     │           │       ┌─────────┐  ┌───────────┐  ┌─────────────┐
+     │           │       │Provider │  │ Provider  │  │ Entrance    │
+     │           │       │Interface│  │ Interface │  │ Detector    │
+     │           │       └────┬────┘  └─────┬─────┘  │ & Marker    │
+     │           │            │             │        └──────┬──────┘
+     │           │    ┌───────┼───────┐     │               │
+     │           │    ▼       ▼       ▼     ▼               ▼
+     │           │ ┌────────┐ ┌────────┐ ┌───────────────┐ ┌─────────────┐
+     │           │ │  YAML  │ │ SQLite │ │  WorldGuard   │ │  Welcome    │
+     │           │ │Provider│ │Provider│ │   Provider    │ │  Signs      │
+     │           │ └────────┘ └────────┘ └───────────────┘ └─────────────┘
+     │           │
+     └───────────┴─── Used by all components for logging ───────────────────
 ```
 
 ## Core Components
@@ -51,6 +53,55 @@ The main plugin class that bootstraps all components:
 - Creates and links all managers in `onEnable()`
 - Handles configuration loading and reloading
 - Manages plugin lifecycle
+
+Initialization order:
+1. `saveDefaultConfig()` - Creates config.yml if missing
+2. `ConfigManager` - Load and cache configuration
+3. `PluginLogger` - Initialize logging system
+4. `StorageManager` - Initialize async storage
+5. `RegionManager` - Detect and initialize region plugins
+6. `VillageBoundaryCalculator`, `EntranceDetector`, `EntranceMarker`, `WelcomeSignPlacer`
+7. Event listeners and commands
+
+### Configuration System
+
+Located in `org.clockworx.villages.config`:
+
+- **ConfigManager** - Provides typed access to all configuration values
+  - Caches frequently accessed values (debug settings)
+  - Supports runtime modification of debug settings
+  - Handles `reload()` to refresh values from disk
+  - Provides `MySQLConfig` record for database settings
+
+```java
+// Example usage
+ConfigManager config = plugin.getConfigManager();
+boolean debug = config.isDebugEnabled();
+config.setLogStorage(true);  // Persists to config.yml
+```
+
+### Logging System
+
+Located in `org.clockworx.villages.util`:
+
+- **PluginLogger** - Enhanced logging with categories and timestamps
+- **LogCategory** - Enum of log categories (GENERAL, STORAGE, REGION, BOUNDARY, ENTRANCE, COMMAND)
+
+Log format: `[DEBUG] [HH:mm:ss] [Category] Message`
+
+Features:
+- Respects `debug.enabled` master switch
+- Per-category filtering via config
+- Thread-safe operation
+- Convenience methods for each category
+
+```java
+// Example usage
+PluginLogger logger = plugin.getPluginLogger();
+logger.info("Normal message");
+logger.debugStorage("Storage operation details");  // Only if debug.log-storage: true
+logger.verbose(LogCategory.BOUNDARY, "Very detailed info");  // Only if verbose: true
+```
 
 ### Storage System
 
@@ -179,7 +230,24 @@ signs:
     - "Welcome to"
     - "%village_name%"
     ...
+
+debug:
+  enabled: false        # Master switch for all debug logging
+  verbose: false        # Extra detailed output
+  log-storage: false    # Storage operations (saves, loads, queries)
+  log-regions: false    # Region operations (create, delete, flags)
+  log-boundaries: false # Boundary calculations (POI scanning)
+  log-entrances: false  # Entrance detection (path scanning)
 ```
+
+### Debug Configuration
+
+The debug system uses a hierarchical approach:
+1. `debug.enabled` must be `true` for any debug logging
+2. Individual categories can be toggled independently
+3. `debug.verbose` enables extra-detailed logging
+
+All debug settings can be changed at runtime via `/village debug` commands.
 
 ## Extension Points
 

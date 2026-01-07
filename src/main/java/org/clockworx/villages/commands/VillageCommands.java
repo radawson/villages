@@ -7,11 +7,11 @@ import dev.jorel.commandapi.arguments.StringArgument;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.boundary.VillageBoundaryCalculator;
+import org.clockworx.villages.config.ConfigManager;
 import org.clockworx.villages.detection.EntranceDetector;
 import org.clockworx.villages.detection.EntranceMarker;
 import org.clockworx.villages.model.Village;
@@ -94,6 +94,14 @@ public class VillageCommands {
             .withSubcommand(reloadCommand())
             .withSubcommand(migrateCommand())
             .withSubcommand(backupCommand())
+            // Debug commands
+            .withSubcommand(debugCommand())
+            .withSubcommand(debugOnCommand())
+            .withSubcommand(debugOffCommand())
+            .withSubcommand(debugStorageCommand())
+            .withSubcommand(debugRegionsCommand())
+            .withSubcommand(debugBoundariesCommand())
+            .withSubcommand(debugEntrancesCommand())
             .register();
     }
     
@@ -216,7 +224,7 @@ public class VillageCommands {
         return new CommandAPICommand("reload")
             .withPermission("villages.admin.reload")
             .executes((sender, args) -> {
-                plugin.reloadConfig();
+                plugin.reloadPluginConfig();
                 sender.sendMessage(Component.text("Villages configuration reloaded.", NamedTextColor.GREEN));
             });
     }
@@ -239,6 +247,70 @@ public class VillageCommands {
             .executes((sender, args) -> {
                 handleBackupCommand(sender);
             });
+    }
+    
+    // ==================== Debug Commands ====================
+    
+    private CommandAPICommand debugCommand() {
+        return new CommandAPICommand("debug")
+            .withPermission("villages.admin.debug")
+            .executes((sender, args) -> {
+                handleDebugStatusCommand(sender);
+            });
+    }
+    
+    private CommandAPICommand debugOnCommand() {
+        return new CommandAPICommand("debug")
+            .withSubcommand(new CommandAPICommand("on")
+                .withPermission("villages.admin.debug")
+                .executes((sender, args) -> {
+                    handleDebugToggleCommand(sender, true);
+                }));
+    }
+    
+    private CommandAPICommand debugOffCommand() {
+        return new CommandAPICommand("debug")
+            .withSubcommand(new CommandAPICommand("off")
+                .withPermission("villages.admin.debug")
+                .executes((sender, args) -> {
+                    handleDebugToggleCommand(sender, false);
+                }));
+    }
+    
+    private CommandAPICommand debugStorageCommand() {
+        return new CommandAPICommand("debug")
+            .withSubcommand(new CommandAPICommand("storage")
+                .withPermission("villages.admin.debug")
+                .executes((sender, args) -> {
+                    handleDebugCategoryToggle(sender, "storage");
+                }));
+    }
+    
+    private CommandAPICommand debugRegionsCommand() {
+        return new CommandAPICommand("debug")
+            .withSubcommand(new CommandAPICommand("regions")
+                .withPermission("villages.admin.debug")
+                .executes((sender, args) -> {
+                    handleDebugCategoryToggle(sender, "regions");
+                }));
+    }
+    
+    private CommandAPICommand debugBoundariesCommand() {
+        return new CommandAPICommand("debug")
+            .withSubcommand(new CommandAPICommand("boundaries")
+                .withPermission("villages.admin.debug")
+                .executes((sender, args) -> {
+                    handleDebugCategoryToggle(sender, "boundaries");
+                }));
+    }
+    
+    private CommandAPICommand debugEntrancesCommand() {
+        return new CommandAPICommand("debug")
+            .withSubcommand(new CommandAPICommand("entrances")
+                .withPermission("villages.admin.debug")
+                .executes((sender, args) -> {
+                    handleDebugCategoryToggle(sender, "entrances");
+                }));
     }
     
     // ==================== Command Handlers ====================
@@ -265,7 +337,7 @@ public class VillageCommands {
     }
     
     private void handleInfoCommand(Player player) {
-        String version = plugin.getDescription().getVersion();
+        String version = plugin.getPluginMeta().getVersion();
         int villageCount = storageManager.getVillageCount().join();
         String storageType = storageManager.getActiveType().name();
         String regionProvider = regionManager.getProviderName();
@@ -585,6 +657,97 @@ public class VillageCommands {
             sender.sendMessage(Component.text("Backup failed: " + ex.getMessage(), NamedTextColor.RED));
             return null;
         });
+    }
+    
+    private void handleDebugStatusCommand(org.bukkit.command.CommandSender sender) {
+        ConfigManager config = plugin.getConfigManager();
+        
+        Component message = Component.text()
+            .append(Component.text("=== Debug Status ===\n", NamedTextColor.GOLD))
+            .append(Component.text("Debug: ", NamedTextColor.GRAY))
+            .append(Component.text(config.isDebugEnabled() ? "ENABLED" : "DISABLED", 
+                config.isDebugEnabled() ? NamedTextColor.GREEN : NamedTextColor.RED))
+            .append(Component.text("\n"))
+            .append(Component.text("Verbose: ", NamedTextColor.GRAY))
+            .append(Component.text(config.isVerbose() ? "ON" : "OFF", 
+                config.isVerbose() ? NamedTextColor.GREEN : NamedTextColor.GRAY))
+            .append(Component.text("\n"))
+            .append(Component.text("Categories:\n", NamedTextColor.GRAY))
+            .append(Component.text("  Storage: ", NamedTextColor.GRAY))
+            .append(Component.text(config.shouldLogStorage() ? "ON" : "OFF", 
+                config.shouldLogStorage() ? NamedTextColor.GREEN : NamedTextColor.GRAY))
+            .append(Component.text("\n"))
+            .append(Component.text("  Regions: ", NamedTextColor.GRAY))
+            .append(Component.text(config.shouldLogRegions() ? "ON" : "OFF", 
+                config.shouldLogRegions() ? NamedTextColor.GREEN : NamedTextColor.GRAY))
+            .append(Component.text("\n"))
+            .append(Component.text("  Boundaries: ", NamedTextColor.GRAY))
+            .append(Component.text(config.shouldLogBoundaries() ? "ON" : "OFF", 
+                config.shouldLogBoundaries() ? NamedTextColor.GREEN : NamedTextColor.GRAY))
+            .append(Component.text("\n"))
+            .append(Component.text("  Entrances: ", NamedTextColor.GRAY))
+            .append(Component.text(config.shouldLogEntrances() ? "ON" : "OFF", 
+                config.shouldLogEntrances() ? NamedTextColor.GREEN : NamedTextColor.GRAY))
+            .build();
+        
+        sender.sendMessage(message);
+    }
+    
+    private void handleDebugToggleCommand(org.bukkit.command.CommandSender sender, boolean enable) {
+        ConfigManager config = plugin.getConfigManager();
+        config.setDebugEnabled(enable);
+        
+        if (enable) {
+            sender.sendMessage(Component.text("Debug logging ENABLED", NamedTextColor.GREEN));
+            plugin.getPluginLogger().info("Debug logging enabled by " + sender.getName());
+        } else {
+            sender.sendMessage(Component.text("Debug logging DISABLED", NamedTextColor.YELLOW));
+            plugin.getLogger().info("Debug logging disabled by " + sender.getName());
+        }
+    }
+    
+    private void handleDebugCategoryToggle(org.bukkit.command.CommandSender sender, String category) {
+        ConfigManager config = plugin.getConfigManager();
+        
+        // Ensure debug is enabled first
+        if (!config.isDebugEnabled()) {
+            sender.sendMessage(Component.text("Debug is disabled. Enable with /village debug on", NamedTextColor.YELLOW));
+            return;
+        }
+        
+        boolean newState;
+        String categoryName;
+        
+        switch (category.toLowerCase()) {
+            case "storage" -> {
+                newState = !config.shouldLogStorage();
+                config.setLogStorage(newState);
+                categoryName = "Storage";
+            }
+            case "regions" -> {
+                newState = !config.shouldLogRegions();
+                config.setLogRegions(newState);
+                categoryName = "Regions";
+            }
+            case "boundaries" -> {
+                newState = !config.shouldLogBoundaries();
+                config.setLogBoundaries(newState);
+                categoryName = "Boundaries";
+            }
+            case "entrances" -> {
+                newState = !config.shouldLogEntrances();
+                config.setLogEntrances(newState);
+                categoryName = "Entrances";
+            }
+            default -> {
+                sender.sendMessage(Component.text("Unknown category: " + category, NamedTextColor.RED));
+                return;
+            }
+        }
+        
+        sender.sendMessage(Component.text(categoryName + " logging: ", NamedTextColor.GRAY)
+            .append(Component.text(newState ? "ENABLED" : "DISABLED", 
+                newState ? NamedTextColor.GREEN : NamedTextColor.YELLOW)));
     }
     
     // ==================== Utility Methods ====================

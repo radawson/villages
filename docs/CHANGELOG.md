@@ -5,6 +5,65 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - Logging and Configuration System
+
+### Added
+
+#### Configuration Management
+- **ConfigManager** - Typed access to all configuration values with caching
+- Automatic `config.yml` creation on first startup via `saveDefaultConfig()`
+- Runtime configuration reload via `/village reload`
+- All configuration sections now have typed getter methods
+
+#### Logging System
+- **PluginLogger** - Custom logger with timestamps and category tags
+- **LogCategory** enum - Categories: GENERAL, STORAGE, REGION, BOUNDARY, ENTRANCE, COMMAND
+- Per-category debug filtering via config
+- Log format: `[DEBUG] [HH:mm:ss] [Category] Message`
+- Thread-safe logging operations
+
+#### Debug Commands
+- `/village debug` - Show current debug status
+- `/village debug on` - Enable debug logging
+- `/village debug off` - Disable debug logging
+- `/village debug storage` - Toggle storage operation logging
+- `/village debug regions` - Toggle region operation logging
+- `/village debug boundaries` - Toggle boundary calculation logging
+- `/village debug entrances` - Toggle entrance detection logging
+
+### Changed
+- All components now use `PluginLogger` instead of direct `plugin.getLogger()`
+- Debug settings consolidated under `debug:` section in config.yml
+- Removed duplicate `debug: false` from config.yml root level
+- `VillagesPlugin.onEnable()` now properly initializes all managers in correct order
+- Storage and region managers now use PluginLogger for debug output
+- Config reload now properly refreshes all component configurations
+
+### Fixed
+- `config.yml` not being created on first startup
+- Debug flag not being respected by logging calls
+- Configuration not being passed to component managers
+
+### Technical Details
+
+#### New Classes
+- `org.clockworx.villages.config.ConfigManager` - Configuration management
+- `org.clockworx.villages.util.PluginLogger` - Enhanced logging
+- `org.clockworx.villages.util.LogCategory` - Log category enumeration
+
+#### Debug Configuration Structure
+```yaml
+debug:
+  enabled: false        # Master switch
+  verbose: false        # Extra detailed logging
+  log-storage: false    # Storage operations
+  log-regions: false    # Region operations
+  log-boundaries: false # Boundary calculations
+  log-entrances: false  # Entrance detection
+```
+
+---
+
 ## [0.2.0] - Major Architecture Update
 
 ### Added

@@ -3,10 +3,10 @@ package org.clockworx.villages.regions;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
 
 /**
  * Manages region providers and routes operations to the appropriate provider.
@@ -27,6 +27,7 @@ import java.util.logging.Level;
 public class RegionManager {
     
     private final VillagesPlugin plugin;
+    private PluginLogger logger;
     private final List<RegionProvider> providers;
     private RegionProvider activeProvider;
     private boolean initialized;
@@ -49,7 +50,10 @@ public class RegionManager {
      */
     public CompletableFuture<Void> initialize() {
         return CompletableFuture.runAsync(() -> {
-            plugin.getLogger().info("Initializing region manager...");
+            // Get logger (may be null during early init)
+            this.logger = plugin.getPluginLogger();
+            
+            logInfo("Initializing region manager...");
             
             // Register available providers
             registerProviders();
@@ -61,13 +65,13 @@ public class RegionManager {
             if (activeProvider != null) {
                 try {
                     activeProvider.initialize().join();
-                    plugin.getLogger().info("Region provider initialized: " + activeProvider.getName());
+                    logInfo("Region provider initialized: " + activeProvider.getName());
                 } catch (Exception e) {
-                    plugin.getLogger().log(Level.WARNING, "Failed to initialize region provider", e);
+                    logWarning("Failed to initialize region provider: " + e.getMessage());
                     activeProvider = null;
                 }
             } else {
-                plugin.getLogger().info("No region plugins detected. Region features disabled.");
+                logInfo("No region plugins detected. Region features disabled.");
             }
             
             initialized = true;
@@ -82,14 +86,14 @@ public class RegionManager {
         RegionProvider worldGuard = new WorldGuardProvider(plugin);
         if (worldGuard.isAvailable()) {
             providers.add(worldGuard);
-            plugin.getLogger().info("WorldGuard detected");
+            logInfo("WorldGuard detected");
         }
         
         // Register RegionGuard provider
         RegionProvider regionGuard = new RegionGuardProvider(plugin);
         if (regionGuard.isAvailable()) {
             providers.add(regionGuard);
-            plugin.getLogger().info("RegionGuard detected");
+            logInfo("RegionGuard detected");
         }
     }
     
@@ -127,7 +131,7 @@ public class RegionManager {
                 try {
                     activeProvider.shutdown().join();
                 } catch (Exception e) {
-                    plugin.getLogger().log(Level.WARNING, "Error shutting down region provider", e);
+                    logWarning("Error shutting down region provider: " + e.getMessage());
                 }
             }
             providers.clear();
@@ -188,7 +192,7 @@ public class RegionManager {
         return activeProvider.createRegion(village, boundary)
             .thenApply(Optional::of)
             .exceptionally(e -> {
-                plugin.getLogger().log(Level.WARNING, "Failed to create region", e);
+                logWarning("Failed to create region: " + e.getMessage());
                 return Optional.empty();
             });
     }
@@ -305,5 +309,34 @@ public class RegionManager {
         }
         
         return flags;
+    }
+    
+    // ==================== Logging Helpers ====================
+    
+    private void logInfo(String message) {
+        if (logger != null) {
+            logger.info(message);
+        } else {
+            plugin.getLogger().info(message);
+        }
+    }
+    
+    private void logWarning(String message) {
+        if (logger != null) {
+            logger.warning(message);
+        } else {
+            plugin.getLogger().warning(message);
+        }
+    }
+    
+    /**
+     * Logs a debug message for region operations.
+     * 
+     * @param message The message to log
+     */
+    public void logDebug(String message) {
+        if (logger != null) {
+            logger.debugRegion(message);
+        }
     }
 }

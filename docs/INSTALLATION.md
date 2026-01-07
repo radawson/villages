@@ -95,6 +95,7 @@ villages.region.flags: op
 villages.admin.reload: op
 villages.admin.migrate: op
 villages.admin.backup: op
+villages.admin.debug: op     # Debug toggle commands
 ```
 
 ## Storage Configuration
@@ -157,6 +158,34 @@ To migrate between storage backends:
 Example: `/village migrate yaml sqlite`
 
 This copies all village data from the source to the destination.
+
+## Debug Configuration
+
+For troubleshooting, enable debug logging in `config.yml`:
+
+```yaml
+debug:
+  enabled: true         # Master switch - must be true
+  verbose: false        # Extra detailed output
+  log-storage: true     # Storage operations
+  log-regions: true     # Region operations
+  log-boundaries: true  # Boundary calculations
+  log-entrances: true   # Entrance detection
+```
+
+Or toggle at runtime without editing config:
+
+```
+/village debug on          # Enable debug mode
+/village debug storage     # Toggle storage logging
+/village debug regions     # Toggle region logging
+/village debug boundaries  # Toggle boundary logging
+/village debug entrances   # Toggle entrance logging
+/village debug             # Show current status
+/village debug off         # Disable all debug
+```
+
+Debug output format: `[DEBUG] [HH:mm:ss] [Category] Message`
 
 ## First-Time Setup
 
@@ -232,6 +261,13 @@ If you switch to SQLite:
 1. Switch from YAML to SQLite storage
 2. Enable async storage: `performance.async-storage: true`
 3. Limit cache size: `performance.cache-size: 500`
+
+### Debug Logging Not Working
+
+1. Ensure `debug.enabled: true` in config.yml
+2. Enable specific category: `debug.log-storage: true`
+3. Or use runtime toggle: `/village debug on`
+4. Check you have `villages.admin.debug` permission
 
 ## Uninstallation
 

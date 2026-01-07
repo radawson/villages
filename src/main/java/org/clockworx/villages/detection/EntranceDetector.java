@@ -9,9 +9,9 @@ import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.*;
-import java.util.logging.Level;
 
 /**
  * Detects road entrances to villages by scanning the boundary perimeter.
@@ -32,6 +32,7 @@ import java.util.logging.Level;
 public class EntranceDetector {
     
     private final VillagesPlugin plugin;
+    private PluginLogger logger;
     private Set<Material> pathMaterials;
     private int minPathWidth;
     
@@ -54,6 +55,7 @@ public class EntranceDetector {
      */
     public EntranceDetector(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         loadConfiguration();
     }
     
@@ -72,7 +74,7 @@ public class EntranceDetector {
                     Material mat = Material.valueOf(name.toUpperCase());
                     pathMaterials.add(mat);
                 } catch (IllegalArgumentException e) {
-                    plugin.getLogger().warning("Invalid path block material: " + name);
+                    logWarning("Invalid path block material: " + name);
                 }
             }
         }
@@ -111,11 +113,11 @@ public class EntranceDetector {
             // Merge nearby entrances
             entrances = mergeNearbyEntrances(entrances);
             
-            plugin.getLogger().info("Detected " + entrances.size() + " entrances for village: " + 
+            logDebug("Detected " + entrances.size() + " entrances for village: " + 
                 village.getDisplayName());
             
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to detect entrances", e);
+            logWarning("Failed to detect entrances: " + e.getMessage());
         }
         
         return entrances;
@@ -376,6 +378,23 @@ public class EntranceDetector {
      * Reloads configuration.
      */
     public void reload() {
+        this.logger = plugin.getPluginLogger();
         loadConfiguration();
+    }
+    
+    // ==================== Logging Helpers ====================
+    
+    private void logWarning(String message) {
+        if (logger != null) {
+            logger.warning(message);
+        } else {
+            plugin.getLogger().warning(message);
+        }
+    }
+    
+    private void logDebug(String message) {
+        if (logger != null) {
+            logger.debugEntrance(message);
+        }
     }
 }

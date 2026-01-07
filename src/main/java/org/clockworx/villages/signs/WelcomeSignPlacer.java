@@ -13,9 +13,9 @@ import org.bukkit.block.sign.SignSide;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.util.PluginLogger;
 
 import java.util.List;
-import java.util.logging.Level;
 
 /**
  * Places "Welcome to [Village Name]" signs at village entrances.
@@ -35,6 +35,7 @@ import java.util.logging.Level;
 public class WelcomeSignPlacer {
     
     private final VillagesPlugin plugin;
+    private PluginLogger logger;
     
     // Configuration
     private Material signMaterial;
@@ -56,6 +57,7 @@ public class WelcomeSignPlacer {
      */
     public WelcomeSignPlacer(VillagesPlugin plugin) {
         this.plugin = plugin;
+        this.logger = plugin.getPluginLogger();
         loadConfiguration();
     }
     
@@ -68,7 +70,7 @@ public class WelcomeSignPlacer {
         try {
             signMaterial = Material.valueOf(materialName.toUpperCase());
         } catch (IllegalArgumentException e) {
-            plugin.getLogger().warning("Invalid sign material: " + materialName + ", using OAK_WALL_SIGN");
+            logWarning("Invalid sign material: " + materialName + ", using OAK_WALL_SIGN");
             signMaterial = Material.OAK_WALL_SIGN;
         }
         
@@ -108,7 +110,7 @@ public class WelcomeSignPlacer {
         }
         
         if (placed > 0) {
-            plugin.getLogger().info("Placed " + placed + " welcome signs for village: " + 
+            logDebug("Placed " + placed + " welcome signs for village: " + 
                 village.getDisplayName());
         }
         
@@ -154,13 +156,13 @@ public class WelcomeSignPlacer {
                 sign.update();
             }
             
-            plugin.getLogger().fine("Placed welcome sign at " + 
+            logDebug("Placed welcome sign at " + 
                 signBlock.getX() + ", " + signBlock.getY() + ", " + signBlock.getZ());
             
             return true;
             
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to place welcome sign", e);
+            logWarning("Failed to place welcome sign: " + e.getMessage());
             return false;
         }
     }
@@ -378,6 +380,23 @@ public class WelcomeSignPlacer {
      * Reloads configuration.
      */
     public void reload() {
+        this.logger = plugin.getPluginLogger();
         loadConfiguration();
+    }
+    
+    // ==================== Logging Helpers ====================
+    
+    private void logWarning(String message) {
+        if (logger != null) {
+            logger.warning(message);
+        } else {
+            plugin.getLogger().warning(message);
+        }
+    }
+    
+    private void logDebug(String message) {
+        if (logger != null) {
+            logger.debugEntrance(message);
+        }
     }
 }

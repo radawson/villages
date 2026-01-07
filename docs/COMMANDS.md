@@ -209,15 +209,81 @@ For more detailed information, see the official CommandAPI documentation:
 - [CommandAPI Documentation](https://commandapi.jorel.dev/)
 - [CommandAPI GitHub](https://github.com/JorelAli/CommandAPI)
 
+## Current Commands Reference
+
+As of version 0.2.1, the plugin includes:
+
+### Basic Commands
+- `/village name <name>` - Name a village
+- `/village info` - Show plugin and village info
+
+### Border Commands
+- `/village border show [duration]` - Visualize boundary with particles
+- `/village border recalculate` - Force boundary recalculation
+
+### Entrance Commands
+- `/village entrance add` - Mark entrance at current location
+- `/village entrance remove` - Remove nearest entrance
+- `/village entrance list` - List all entrances
+- `/village entrance detect` - Run automatic detection
+
+### Region Commands
+- `/village region create` - Create WorldGuard region
+- `/village region delete` - Delete village region
+- `/village region flags [flag] [value]` - View/set flags
+
+### Admin Commands
+- `/village reload` - Reload configuration
+- `/village migrate <from> <to>` - Migrate storage
+- `/village backup` - Create data backup
+
+### Debug Commands
+- `/village debug` - Show debug status
+- `/village debug on/off` - Toggle debug mode
+- `/village debug storage` - Toggle storage logging
+- `/village debug regions` - Toggle region logging
+- `/village debug boundaries` - Toggle boundary logging
+- `/village debug entrances` - Toggle entrance logging
+
+## Example: Debug Command Implementation
+
+The debug commands show how to build toggle commands with subcommands:
+
+```java
+private CommandAPICommand debugCommand() {
+    return new CommandAPICommand("debug")
+        .withPermission("villages.admin.debug")
+        .executes((sender, args) -> {
+            handleDebugStatusCommand(sender);  // Show status
+        });
+}
+
+private CommandAPICommand debugOnCommand() {
+    return new CommandAPICommand("debug")
+        .withSubcommand(new CommandAPICommand("on")
+            .withPermission("villages.admin.debug")
+            .executes((sender, args) -> {
+                handleDebugToggleCommand(sender, true);
+            }));
+}
+
+private CommandAPICommand debugStorageCommand() {
+    return new CommandAPICommand("debug")
+        .withSubcommand(new CommandAPICommand("storage")
+            .withPermission("villages.admin.debug")
+            .executes((sender, args) -> {
+                handleDebugCategoryToggle(sender, "storage");
+            }));
+}
+```
+
+This pattern allows `/village debug` to show status, while `/village debug on` and `/village debug storage` are subcommands.
+
 ## Future Command Ideas
 
-Here are some ideas for future commands you might want to add:
-
-- `/village info` - Show information about the village in the current chunk
 - `/village list` - List all named villages
-- `/village rename <old> <new>` - Rename a village
-- `/village delete <name>` - Remove a village name (revert to UUID)
-- `/village setborder <radius>` - Set village border radius
+- `/village rename <old> <new>` - Rename a village  
 - `/village teleport <name>` - Teleport to a named village
+- `/village debug verbose` - Toggle verbose mode
 
 Each of these can be added as a new `.withSubcommand()` call on the root command.

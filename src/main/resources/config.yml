@@ -6,7 +6,7 @@
 # =============================================================================
 # The Villages plugin supports multiple storage backends for village data.
 # Choose the one that best fits your server's needs.
-debug: false
+
 storage:
   # Storage type: yaml, sqlite, or mysql
   # - yaml: Simple file-based storage. Human-readable, good for small servers.
@@ -21,10 +21,6 @@ storage:
   
   # MySQL settings (used when type: mysql)
   mysql:
-  # Table prefix for shared databases (optional, default: empty)
-      # Useful when multiple plugins share the same database
-      # Example: "villages_" would create tables like "villages_villages", "villages_schema_version"
-      prefix: ""
     host: localhost
     port: 3306
     database: villages
@@ -32,6 +28,10 @@ storage:
     password: ""
     # Connection pool size (number of connections to maintain)
     pool-size: 10
+    # Table prefix for shared databases (optional, default: empty)
+    # Useful when multiple plugins share the same database
+    # Example: "villages_" would create tables like "villages_villages"
+    prefix: ""
 
 # =============================================================================
 # Region Integration
@@ -87,11 +87,13 @@ entrances:
   # Block types considered as paths/roads for entrance detection
   path-blocks:
     - DIRT_PATH
-    - GRASS_PATH
     - COBBLESTONE
     - STONE
     - STONE_BRICKS
     - GRAVEL
+    - COBBLESTONE_SLAB
+    - STONE_SLAB
+    - STONE_BRICK_SLAB
   
   # Minimum path width to be considered an entrance (in blocks)
   min-path-width: 2
@@ -136,11 +138,20 @@ performance:
 # Settings for debugging and development.
 
 debug:
-  # Enable verbose logging
+  # Master debug switch - enables debug logging
+  enabled: false
+  
+  # Extra verbose logging (very detailed)
   verbose: false
   
-  # Log storage operations
+  # Log storage operations (saves, loads, queries)
   log-storage: false
   
-  # Log region operations
+  # Log region operations (create, delete, flags)
   log-regions: false
+  
+  # Log boundary calculations
+  log-boundaries: false
+  
+  # Log entrance detection
+  log-entrances: false
