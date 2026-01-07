@@ -5,6 +5,66 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - File Logging
+
+### Added
+
+#### File-Based Logging
+- **File output** - All log messages are now written to log files in addition to console
+- **Daily rotation** - Log files are automatically rotated each day (format: `villages-YYYY-MM-DD.log`)
+- **Size-based rotation** - Files exceeding the configured size limit are rotated automatically
+- **Automatic cleanup** - Old log files are deleted when the maximum file count is exceeded
+- **Full timestamp format** - File logs include full date and time: `[YYYY-MM-DD HH:mm:ss]`
+- **Stack traces** - Exception stack traces are written to log files for debugging
+- **Thread-safe** - File operations use synchronization for safe async logging
+
+#### Configuration Options
+New `logging.file` section in `config.yml`:
+```yaml
+logging:
+  file:
+    enabled: true           # Enable/disable file logging
+    directory: logs         # Log directory under plugins/Villages/
+    max-file-size-mb: 10    # Rotate when file exceeds this size
+    max-files: 14           # Keep last N log files (0 = unlimited)
+    include-debug: true     # Include DEBUG/VERBOSE messages in file
+```
+
+#### New PluginLogger Methods
+- `shutdown()` - Flushes and closes the log file (called on plugin disable)
+- `flush()` - Manually flush pending log data to file
+- `isFileLoggingActive()` - Check if file logging is enabled and initialized
+- `getCurrentLogFile()` - Get the path to the current log file
+
+### Changed
+- `PluginLogger` now writes to both console and file simultaneously
+- File log format uses full date-time: `[2026-01-07 14:23:45] [INFO] [Category] Message`
+- Console format remains unchanged for readability
+- Shutdown sequence now properly closes log files
+
+### Technical Details
+
+#### Log File Format
+```
+[2026-01-07 14:23:45] [INFO] Villages plugin enabled
+[2026-01-07 14:23:45] [DEBUG] [Storage] Loading village cache...
+[2026-01-07 14:23:46] [SEVERE] [Region] Error creating region
+java.lang.Exception: Stack trace details
+    at org.clockworx.villages...
+```
+
+#### Rotation Behavior
+- **Daily**: New file created at midnight (server time)
+- **Size**: Current file renamed with index (`.1.log`, `.2.log`, etc.)
+- **Cleanup**: Oldest files deleted when `max-files` limit exceeded
+
+#### File Locations
+- Log directory: `plugins/Villages/logs/`
+- File naming: `villages-2026-01-07.log`
+- Rotated files: `villages-2026-01-07.1.log`
+
+---
+
 ## [0.2.2] - Comprehensive Logging Implementation
 
 ### Added

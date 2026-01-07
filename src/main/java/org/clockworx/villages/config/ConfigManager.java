@@ -483,4 +483,54 @@ public class ConfigManager {
         
         return sb.toString();
     }
+    
+    // ==================== File Logging Configuration ====================
+    
+    /**
+     * Checks if file logging is enabled.
+     * 
+     * @return true if file logging is enabled
+     */
+    public boolean isFileLoggingEnabled() {
+        return config.getBoolean("logging.file.enabled", true);
+    }
+    
+    /**
+     * Gets the log file directory name.
+     * This is relative to the plugin data folder.
+     * 
+     * @return The log directory name
+     */
+    public String getLogDirectory() {
+        return config.getString("logging.file.directory", "logs");
+    }
+    
+    /**
+     * Gets the maximum log file size in megabytes.
+     * When a log file exceeds this size, it will be rotated.
+     * 
+     * @return Maximum file size in MB
+     */
+    public int getMaxLogFileSizeMb() {
+        return config.getInt("logging.file.max-file-size-mb", 10);
+    }
+    
+    /**
+     * Gets the maximum number of log files to keep.
+     * Oldest files are deleted when this limit is exceeded.
+     * 
+     * @return Maximum number of files (0 = unlimited)
+     */
+    public int getMaxLogFiles() {
+        return config.getInt("logging.file.max-files", 14);
+    }
+    
+    /**
+     * Checks if debug messages should be included in file output.
+     * 
+     * @return true if debug messages should be written to file
+     */
+    public boolean shouldIncludeDebugInFile() {
+        return config.getBoolean("logging.file.include-debug", true);
+    }
 }

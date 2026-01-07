@@ -133,6 +133,30 @@ performance:
   async-storage: true
 
 # =============================================================================
+# Logging
+# =============================================================================
+# Settings for file-based logging output.
+
+logging:
+  file:
+    # Enable file logging (in addition to console)
+    enabled: true
+    
+    # Directory for log files (under plugins/Villages/)
+    directory: logs
+    
+    # Maximum size of a single log file in MB before rotation
+    max-file-size-mb: 10
+    
+    # Maximum number of log files to keep (0 = unlimited)
+    # Oldest files are deleted when this limit is exceeded
+    max-files: 14
+    
+    # Include debug messages in file output
+    # If false, only INFO, WARNING, and SEVERE are written to file
+    include-debug: true
+
+# =============================================================================
 # Debug
 # =============================================================================
 # Settings for debugging and development.

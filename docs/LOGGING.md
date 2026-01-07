@@ -5,11 +5,87 @@ The Villages plugin uses a comprehensive logging system designed to help track t
 ## Overview
 
 The logging system provides:
+- **Dual output** - Logs to both console and file simultaneously
 - **Categorized logging** - Messages are tagged with categories for easy filtering
 - **Configurable debug levels** - Enable/disable debug logging per category
 - **Timestamped output** - All log messages include timestamps
+- **File rotation** - Daily and size-based log file rotation
 - **Exception logging** - Full stack traces for error diagnosis
 - **Thread-safe operation** - Safe for use in async operations
+
+## File Logging
+
+Starting with version 0.2.3, the plugin writes all log messages to files in addition to console output.
+
+### Log File Location
+
+Log files are stored in `plugins/Villages/logs/` with the naming format:
+- Primary: `villages-YYYY-MM-DD.log` (e.g., `villages-2026-01-07.log`)
+- Rotated: `villages-YYYY-MM-DD.1.log`, `villages-YYYY-MM-DD.2.log`, etc.
+
+### File Log Format
+
+File logs include full date-time stamps for easier searching:
+
+```
+[2026-01-07 14:23:45] [INFO] Villages plugin enabled
+[2026-01-07 14:23:45] [DEBUG] [Storage] Loading village cache...
+[2026-01-07 14:23:46] [WARNING] [Region] WorldGuard not found, regions disabled
+[2026-01-07 14:23:47] [SEVERE] [Storage] Failed to connect to MySQL
+java.sql.SQLException: Connection refused
+    at com.mysql.cj.jdbc.ConnectionImpl...
+    at org.clockworx.villages.storage...
+```
+
+### Configuration
+
+File logging is configured in `config.yml` under the `logging` section:
+
+```yaml
+logging:
+  file:
+    # Enable file logging (in addition to console)
+    enabled: true
+    
+    # Directory for log files (under plugins/Villages/)
+    directory: logs
+    
+    # Maximum size of a single log file in MB before rotation
+    max-file-size-mb: 10
+    
+    # Maximum number of log files to keep (0 = unlimited)
+    max-files: 14
+    
+    # Include debug messages in file output
+    include-debug: true
+```
+
+### Rotation Behavior
+
+Log files are automatically rotated based on two criteria:
+
+**Daily Rotation:**
+- A new log file is created each day at midnight (server time)
+- The previous day's file remains with its date in the filename
+
+**Size-Based Rotation:**
+- When a log file exceeds `max-file-size-mb`, it is rotated
+- The current file is renamed with an index (`.1.log`, `.2.log`, etc.)
+- A new primary file is created
+
+**Automatic Cleanup:**
+- When the number of log files exceeds `max-files`, the oldest files are deleted
+- Set `max-files: 0` for unlimited retention (not recommended)
+
+### Disabling File Logging
+
+To disable file logging and only use console output:
+
+```yaml
+logging:
+  file:
+    enabled: false
+```
 
 ## Log Levels
 
@@ -317,6 +393,7 @@ Use log file search to find specific operations:
 
 ## Version History
 
+- **0.2.3** - File logging with daily and size-based rotation
 - **0.2.2** - Comprehensive logging implementation across all components
 - **0.2.1** - Initial logging system with PluginLogger and LogCategory
 - **0.2.0** - Basic logging with standard Java logger

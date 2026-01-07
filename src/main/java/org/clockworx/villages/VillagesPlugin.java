@@ -220,6 +220,8 @@ public class VillagesPlugin extends JavaPlugin {
         
         if (pluginLogger != null) {
             pluginLogger.info("Villages plugin disabled.");
+            // Shutdown file logging - must be last to capture all log messages
+            pluginLogger.shutdown();
         }
     }
     
