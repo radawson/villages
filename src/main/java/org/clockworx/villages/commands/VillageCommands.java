@@ -7,6 +7,7 @@ import dev.jorel.commandapi.arguments.StringArgument;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.clockworx.villages.VillagesPlugin;
@@ -128,8 +129,8 @@ public class VillageCommands {
     private CommandAPICommand infoCommand() {
         return new CommandAPICommand("info")
             .withPermission("villages.info")
-            .executesPlayer((player, args) -> {
-                handleInfoCommand(player);
+            .executes((sender, args) -> {
+                handleInfoCommand(sender);
             });
     }
     
@@ -358,8 +359,8 @@ public class VillageCommands {
         });
     }
     
-    private void handleInfoCommand(Player player) {
-        logger.debugCommand("Executing /village info command by " + player.getName());
+    private void handleInfoCommand(CommandSender sender) {
+        logger.debugCommand("Executing /village info command by " + sender.getName());
         
         String version = plugin.getPluginMeta().getVersion();
         int villageCount = storageManager.getVillageCount().join();
@@ -383,7 +384,7 @@ public class VillageCommands {
             .append(Component.text(regionProvider, NamedTextColor.WHITE))
             .build();
         
-        player.sendMessage(message);
+        sender.sendMessage(message);
     }
     
     private void handleBorderShowCommand(Player player, int duration) {
@@ -905,21 +906,5 @@ public class VillageCommands {
         }
         
         return Optional.ofNullable(nearest);
-    }
-    
-    private Optional<Village> findVillageNear(Location loc, int radius) {
-        List<Village> villages = storageManager.loadVillagesInWorld(loc.getWorld()).join();
-        
-        for (Village village : villages) {
-            int dx = village.getBellX() - loc.getBlockX();
-            int dz = village.getBellZ() - loc.getBlockZ();
-            double dist = Math.sqrt(dx * dx + dz * dz);
-            
-            if (dist <= radius) {
-                return Optional.of(village);
-            }
-        }
-        
-        return Optional.empty();
     }
 }
