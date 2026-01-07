@@ -10,8 +10,10 @@ The Villages plugin enhances Minecraft villages by automatically detecting villa
 
 - **Automatic Village Detection**: Detects village bells automatically when chunks are loaded
 - **Unique Village Identification**: Assigns a unique UUID to each village bell
-- **Persistent Storage**: Uses Paper's Persistent Data Container (PDC) to store UUIDs directly on bell blocks
-- **Visual Identification**: Places signs on all four cardinal directions (North, South, East, West) around each bell displaying the village UUID
+- **Persistent Storage**: Uses Paper's Persistent Data Container (PDC) and file-based storage to maintain UUIDs even when bells are removed
+- **Visual Identification**: Places signs on all four cardinal directions (North, South, East, West) around each bell displaying the village UUID or name
+- **Village Naming**: Name villages using `/village name <name>` command
+- **Plugin Information**: Check plugin status with `/village info` command
 - **Zero Configuration**: Works out of the box with no configuration required
 
 ## Requirements
@@ -41,24 +43,33 @@ When a chunk loads, the plugin:
 
 ### UUID Storage
 
-The plugin uses Paper's Persistent Data Container (PDC) system to store UUIDs directly on bell blocks. This means:
+The plugin uses a dual-storage system to ensure village UUIDs persist even when bells are removed:
+
+1. **Persistent Data Container (PDC)**: UUIDs are stored directly on bell blocks using Paper's PDC system
+2. **File-based Storage**: UUIDs are also stored in `plugins/Villages/villages.yml` organized by world and chunk coordinates
+
+This dual approach means:
 - UUIDs persist across server restarts
-- No external database or configuration files needed
+- UUIDs are maintained even if a bell is broken or removed
+- When a new bell is placed in the same chunk, it inherits the existing UUID
 - Data is stored with the world, making it portable
+- Storage file: `plugins/Villages/villages.yml` (format: `world_name -> chunkX_chunkZ -> uuid`)
 
 ### Sign Placement
 
-Signs are automatically placed on all four cardinal directions around each bell:
+Signs are automatically placed on all four cardinal directions around each bell, **2 blocks away** from the bell to prevent blocking access:
 - **North**: Sign facing south toward the bell
 - **South**: Sign facing north toward the bell
 - **East**: Sign facing west toward the bell
 - **West**: Sign facing east toward the bell
 
 Each sign displays:
-- Line 1: "Village UUID:"
-- Lines 2-4: The UUID split across three lines (36 characters total)
+- If the village has a name: "Village: [name]" (name split across lines if needed)
+- If the village has no name: "Village UUID: [uuid]" (UUID split across three lines)
 
-Signs will only be placed if the target location is air or a replaceable block (grass, flowers, etc.).
+**Sign Updates**: When renaming a village, existing signs at the target locations are updated with the new name rather than being replaced. This ensures signs stay in the same location.
+
+Signs will only be placed if the target location is air or a replaceable block (grass, flowers, etc.), or if a sign already exists at that location (which will be updated).
 
 ## Building from Source
 
@@ -180,6 +191,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built for the Paper/Spigot API
 - Uses Paper's Persistent Data Container for data storage
 - Designed for Minecraft 1.21.11
+
+## Commands
+
+- `/village name <name>` - Name a village (requires `villages.name` permission, default: OP)
+  - Stand in the chunk containing the village bell
+  - Finds the nearest bell and assigns the name
+  - Updates signs around the bell to display the name
+
+- `/village info` - Display plugin information (requires `villages.name` permission, default: OP)
+  - Shows plugin version
+  - Shows number of tracked villages
+  - Shows storage information
 
 ## Version History
 

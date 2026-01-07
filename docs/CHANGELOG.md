@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Village naming feature via `/village name <name>` command
 - CommandAPI integration for command handling
 - Persistent Data Container (PDC) storage for village names
+- File-based UUID persistence system (`villages.yml`) for maintaining UUIDs across bell removal
 - Sign display now shows village names instead of UUIDs when a name is set
 - Permission system: `villages.name` (default: OP only)
 - Proximity-based village detection: command finds nearest bell in player's chunk
+- `/village info` command to display plugin version, village count, and storage information
 - Documentation: `docs/fongi.md` - Command system guide for adding new commands
 - Documentation: `docs/changelog.md` - This file
 
@@ -21,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SignManager now accepts optional village name parameter
 - Signs display "Village: [name]" when named, or "Village UUID: [uuid]" when unnamed
 - VillageChunkListener now retrieves and passes village names when placing signs
+- Sign placement distance increased from 1 block to 2 blocks away from bell to prevent blocking access
+- Sign replacement logic: existing signs are now updated instead of being replaced when renaming villages
+- UUID storage: Added file-based persistence alongside PDC to maintain UUIDs when bells are removed
+- VillageManager now checks file storage when PDC doesn't contain a UUID, restoring UUIDs to new bells in the same chunk
 
 ### Technical Details
 
@@ -39,6 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - If village has a name: Displays "Village: [name]" (name split across lines if needed)
 - If village has no name: Displays "Village UUID: [uuid]" (UUID split across lines)
 - Signs are updated automatically when a name is set
+- Signs are placed 2 blocks away from the bell horizontally to prevent blocking access
+- Existing signs at target locations are updated rather than replaced
+
+#### File-based UUID Storage
+- New `VillageStorage` class manages persistent UUID storage
+- Storage file: `plugins/Villages/villages.yml`
+- Format: `world_name -> chunkX_chunkZ -> uuid`
+- UUIDs are stored by chunk coordinates, allowing UUID persistence when bells are removed
+- When a new bell is placed in a chunk with an existing UUID, the UUID is restored to the bell's PDC
+- Dual storage system: PDC (on bell) + File storage (by chunk) ensures maximum persistence
 
 ## [1.0.0] - Initial Release
 

@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.managers.VillageManager;
+import org.clockworx.villages.storage.VillageStorage;
 
 import java.util.UUID;
 
@@ -30,6 +31,7 @@ public class VillageCommand {
     private final VillagesPlugin plugin;
     private final VillageManager villageManager;
     private final SignManager signManager;
+    private final VillageStorage villageStorage;
     
     /**
      * Creates a new VillageCommand handler.
@@ -37,11 +39,13 @@ public class VillageCommand {
      * @param plugin The plugin instance
      * @param villageManager The village manager for UUID and name operations
      * @param signManager The sign manager for updating signs
+     * @param villageStorage The storage system for village data
      */
-    public VillageCommand(VillagesPlugin plugin, VillageManager villageManager, SignManager signManager) {
+    public VillageCommand(VillagesPlugin plugin, VillageManager villageManager, SignManager signManager, VillageStorage villageStorage) {
         this.plugin = plugin;
         this.villageManager = villageManager;
         this.signManager = signManager;
+        this.villageStorage = villageStorage;
     }
     
     /**
@@ -58,6 +62,10 @@ public class VillageCommand {
                 .executesPlayer((player, args) -> {
                     String name = (String) args.get("name");
                     handleNameCommand(player, name);
+                }))
+            .withSubcommand(new CommandAPICommand("info")
+                .executesPlayer((player, args) -> {
+                    handleInfoCommand(player);
                 }))
             .register();
     }
@@ -161,5 +169,41 @@ public class VillageCommand {
         }
         
         return nearestBell;
+    }
+    
+    /**
+     * Handles the /village info command execution.
+     * 
+     * This method displays plugin information including:
+     * - Plugin version
+     * - Number of tracked villages
+     * - Other relevant information
+     * 
+     * @param player The player executing the command
+     */
+    private void handleInfoCommand(Player player) {
+        // Get plugin version
+        String version = plugin.getDescription().getVersion();
+        
+        // Get village count
+        int villageCount = villageStorage.getVillageCount();
+        
+        // Build the info message
+        Component message = Component.text()
+            .append(Component.text("=== Villages Plugin Info ===\n", NamedTextColor.GOLD))
+            .append(Component.text("Version: ", NamedTextColor.GRAY))
+            .append(Component.text(version, NamedTextColor.WHITE))
+            .append(Component.text("\n"))
+            .append(Component.text("Tracked Villages: ", NamedTextColor.GRAY))
+            .append(Component.text(String.valueOf(villageCount), NamedTextColor.WHITE))
+            .append(Component.text("\n"))
+            .append(Component.text("Storage: ", NamedTextColor.GRAY))
+            .append(Component.text("File-based (villages.yml)", NamedTextColor.WHITE))
+            .append(Component.text("\n"))
+            .append(Component.text("UUID Persistence: ", NamedTextColor.GRAY))
+            .append(Component.text("PDC + File Storage", NamedTextColor.WHITE))
+            .build();
+        
+        player.sendMessage(message);
     }
 }

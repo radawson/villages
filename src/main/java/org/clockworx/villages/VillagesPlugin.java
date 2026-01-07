@@ -7,6 +7,7 @@ import org.clockworx.villages.commands.VillageCommand;
 import org.clockworx.villages.listeners.VillageChunkListener;
 import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.managers.VillageManager;
+import org.clockworx.villages.storage.VillageStorage;
 
 /**
  * Main plugin class for the Villages plugin.
@@ -20,6 +21,7 @@ import org.clockworx.villages.managers.VillageManager;
  */
 public class VillagesPlugin extends JavaPlugin {
     
+    private VillageStorage villageStorage;
     private VillageManager villageManager;
     private SignManager signManager;
     private VillageChunkListener chunkListener;
@@ -42,8 +44,11 @@ public class VillagesPlugin extends JavaPlugin {
      */
     @Override
     public void onEnable() {
+        // Initialize storage
+        this.villageStorage = new VillageStorage(this);
+        
         // Initialize managers
-        this.villageManager = new VillageManager(this);
+        this.villageManager = new VillageManager(this, villageStorage);
         this.signManager = new SignManager(this);
         
         // Register event listener
@@ -54,7 +59,7 @@ public class VillagesPlugin extends JavaPlugin {
         CommandAPI.onEnable();
         
         // Register commands
-        this.villageCommand = new VillageCommand(this, villageManager, signManager);
+        this.villageCommand = new VillageCommand(this, villageManager, signManager, villageStorage);
         villageCommand.register();
         
         getLogger().info("Villages plugin has been enabled!");

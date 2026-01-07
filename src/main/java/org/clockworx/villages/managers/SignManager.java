@@ -70,14 +70,14 @@ public class SignManager {
      * 
      * This method:
      * 1. Gets the bell's location
-     * 2. For each cardinal direction, tries to place a sign one block down (at the base)
+     * 2. For each cardinal direction, tries to place a sign two blocks away (at the base)
      * 3. If the block below is not replaceable, falls back to the same level as the bell
-     * 4. Checks if the target block is air or a replaceable block (like grass, flowers, etc.)
-     * 5. Places a wall sign facing the bell
-     * 6. Sets the sign text to display the name (if provided) or UUID (if name is null)
+     * 4. Checks if a sign already exists at the target location and updates it if so
+     * 5. Otherwise checks if the target block is air or a replaceable block (like grass, flowers, etc.)
+     * 6. Places a wall sign facing the bell
+     * 7. Sets the sign text to display the name (if provided) or UUID (if name is null)
      * 
-     * Placing signs at the base (Y-1) makes the bell easier to ring and looks more aesthetic
-     * than placing them at the same level as the bell itself.
+     * Placing signs two blocks away prevents them from blocking bell access.
      * 
      * @param bellBlock The bell block to place signs around
      * @param villageUuid The UUID to display on the signs (used as fallback if name is null)
@@ -85,12 +85,19 @@ public class SignManager {
      */
     public void placeSignsAroundBell(Block bellBlock, UUID villageUuid, String villageName) {
         for (BlockFace direction : CARDINAL_DIRECTIONS) {
-            // First, try to place the sign one block down (at the base of the bell)
-            // This makes ringing the bell easier and looks better
-            Block signBlock = bellBlock.getRelative(direction).getRelative(BlockFace.DOWN);
+            // First, try to place the sign two blocks away horizontally, one block down (at the base)
+            // This prevents signs from blocking bell access
+            Block signBlock = bellBlock.getRelative(direction).getRelative(direction).getRelative(BlockFace.DOWN);
             
-            // Check if we can place a sign here (air or replaceable blocks)
-            if (canPlaceSign(signBlock)) {
+            // Check if a sign already exists at this location
+            if (isSign(signBlock)) {
+                // Update the existing sign instead of placing a new one
+                updateSign(signBlock, direction, villageUuid, villageName);
+                
+                plugin.getLogger().fine("Updated existing sign at base level " + signBlock.getLocation() + 
+                    " facing " + direction + " with " + 
+                    (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
+            } else if (canPlaceSign(signBlock)) {
                 // Place a wall sign facing away from the bell (in the same direction as placement)
                 placeWallSign(signBlock, direction, villageUuid, villageName);
                 
@@ -99,9 +106,17 @@ public class SignManager {
                     (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
             } else {
                 // Fall back to the same level as the bell if the base block isn't replaceable
-                Block fallbackBlock = bellBlock.getRelative(direction);
+                Block fallbackBlock = bellBlock.getRelative(direction).getRelative(direction);
                 
-                if (canPlaceSign(fallbackBlock)) {
+                // Check if a sign already exists at the fallback location
+                if (isSign(fallbackBlock)) {
+                    // Update the existing sign instead of placing a new one
+                    updateSign(fallbackBlock, direction, villageUuid, villageName);
+                    
+                    plugin.getLogger().fine("Updated existing sign at bell level " + fallbackBlock.getLocation() + 
+                        " facing " + direction + " with " + 
+                        (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
+                } else if (canPlaceSign(fallbackBlock)) {
                     // Place a wall sign facing away from the bell (in the same direction as placement)
                     placeWallSign(fallbackBlock, direction, villageUuid, villageName);
                     
@@ -114,6 +129,72 @@ public class SignManager {
                 }
             }
         }
+    }
+    
+    /**
+     * Checks if a block is a sign (wall sign or standing sign).
+     * 
+     * @param block The block to check
+     * @return true if the block is a sign
+     */
+    private boolean isSign(Block block) {
+        Material type = block.getType();
+        return type.name().endsWith("_WALL_SIGN") || type.name().endsWith("_SIGN");
+    }
+    
+    /**
+     * Updates an existing sign with new text.
+     * 
+     * @param block The sign block to update
+     * @param facing The direction the sign should face (away from the bell)
+     * @param villageUuid The UUID to display (used if villageName is null)
+     * @param villageName The name to display (null to display UUID instead)
+     */
+    private void updateSign(Block block, BlockFace facing, UUID villageUuid, String villageName) {
+        BlockState state = block.getState();
+        if (!(state instanceof Sign sign)) {
+            plugin.getLogger().warning("Failed to get Sign state for block at " + block.getLocation());
+            return;
+        }
+        
+        // Update the facing direction if needed (for wall signs)
+        org.bukkit.block.data.BlockData blockData = block.getBlockData();
+        if (blockData instanceof org.bukkit.block.data.type.WallSign wallSignData) {
+            wallSignData.setFacing(facing);
+            block.setBlockData(wallSignData);
+            // Re-get the state after updating block data
+            state = block.getState();
+            if (!(state instanceof Sign updatedSign)) {
+                plugin.getLogger().warning("Failed to get Sign state after updating block data at " + block.getLocation());
+                return;
+            }
+            sign = updatedSign;
+        }
+        
+        // Get the front side of the sign (the side that faces the bell)
+        SignSide signSide = sign.getSide(Side.FRONT);
+        
+        // Set the text on the sign using Kyori Adventure components
+        if (villageName != null && !villageName.trim().isEmpty()) {
+            // Display the village name
+            signSide.line(0, Component.text("Village:"));
+            // Split long names across multiple lines if needed
+            String[] nameParts = splitNameForSign(villageName);
+            signSide.line(1, Component.text(nameParts[0]));
+            signSide.line(2, Component.text(nameParts.length > 1 ? nameParts[1] : ""));
+            signSide.line(3, Component.text(nameParts.length > 2 ? nameParts[2] : ""));
+        } else {
+            // Display the UUID as fallback
+            String uuidString = villageUuid.toString();
+            String[] uuidParts = splitUuidForSign(uuidString);
+            signSide.line(0, Component.text("Village UUID:"));
+            signSide.line(1, Component.text(uuidParts[0])); // First part of UUID
+            signSide.line(2, Component.text(uuidParts[1])); // Second part of UUID
+            signSide.line(3, Component.text(uuidParts[2])); // Third part of UUID
+        }
+        
+        // Apply the changes
+        sign.update();
     }
     
     /**

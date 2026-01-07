@@ -7,6 +7,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataHolder;
 import org.bukkit.persistence.PersistentDataType;
 import org.clockworx.villages.VillagesPlugin;
+import org.clockworx.villages.storage.VillageStorage;
 
 import java.util.UUID;
 
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class VillageManager {
     
     private final VillagesPlugin plugin;
+    private final VillageStorage villageStorage;
     private final NamespacedKey villageUuidKey;
     private final NamespacedKey villageNameKey;
     
@@ -32,9 +34,11 @@ public class VillageManager {
      * Creates a new VillageManager.
      * 
      * @param plugin The plugin instance
+     * @param villageStorage The storage system for persistent UUIDs
      */
-    public VillageManager(VillagesPlugin plugin) {
+    public VillageManager(VillagesPlugin plugin, VillageStorage villageStorage) {
         this.plugin = plugin;
+        this.villageStorage = villageStorage;
         // Create a unique NamespacedKey for storing village UUIDs
         // Format: plugin_name:key_name
         this.villageUuidKey = new NamespacedKey(plugin, "village_uuid");
@@ -49,8 +53,10 @@ public class VillageManager {
      * 1. Gets the block's state (BlockState) which provides access to PDC
      * 2. Gets the PersistentDataContainer from the block state
      * 3. Checks if a UUID already exists in the PDC
-     * 4. If not, generates a new UUID and stores it
-     * 5. Returns the UUID (either existing or newly generated)
+     * 4. If not found in PDC, checks file storage for the chunk
+     * 5. If found in file storage, restores it to the bell's PDC
+     * 6. If not found anywhere, generates a new UUID and stores it in both PDC and file storage
+     * 7. Returns the UUID (either existing, restored, or newly generated)
      * 
      * @param bellBlock The bell block to get/assign a UUID for
      * @return The UUID associated with this bell block
@@ -61,8 +67,8 @@ public class VillageManager {
         BlockState blockState = bellBlock.getState();
         if (!(blockState instanceof PersistentDataHolder holder)) {
             plugin.getLogger().warning("BlockState does not support PDC at " + bellBlock.getLocation());
-            // Fallback: generate a UUID but can't persist it
-            return UUID.randomUUID();
+            // Fallback: check file storage and generate if not found
+            return getOrCreateUuidFromStorage(bellBlock);
         }
         PersistentDataContainer pdc = holder.getPersistentDataContainer();
         
@@ -70,11 +76,32 @@ public class VillageManager {
         String existingUuid = pdc.get(villageUuidKey, PersistentDataType.STRING);
         
         if (existingUuid != null) {
-            // UUID already exists, return it
-            return UUID.fromString(existingUuid);
+            // UUID already exists in PDC, return it
+            UUID uuid = UUID.fromString(existingUuid);
+            
+            // Also ensure it's stored in file storage (in case it wasn't before)
+            var chunk = bellBlock.getChunk();
+            villageStorage.setVillageUuid(bellBlock.getWorld(), chunk.getX(), chunk.getZ(), uuid);
+            
+            return uuid;
         }
         
-        // Generate a new UUID
+        // UUID not found in PDC, check file storage for the chunk
+        var chunk = bellBlock.getChunk();
+        UUID storedUuid = villageStorage.getVillageUuid(bellBlock.getWorld(), chunk.getX(), chunk.getZ());
+        
+        if (storedUuid != null) {
+            // Found UUID in file storage, restore it to the bell's PDC
+            pdc.set(villageUuidKey, PersistentDataType.STRING, storedUuid.toString());
+            blockState.update();
+            
+            plugin.getLogger().info("Restored village UUID: " + storedUuid + " to bell at " + 
+                bellBlock.getLocation() + " from file storage");
+            
+            return storedUuid;
+        }
+        
+        // No UUID found anywhere, generate a new one
         UUID newUuid = UUID.randomUUID();
         
         // Store the UUID in the PDC as a string
@@ -83,7 +110,31 @@ public class VillageManager {
         // IMPORTANT: We must apply the changes to save the PDC data
         blockState.update();
         
+        // Also store in file storage for persistence across bell removal
+        villageStorage.setVillageUuid(bellBlock.getWorld(), chunk.getX(), chunk.getZ(), newUuid);
+        
         plugin.getLogger().info("Assigned new village UUID: " + newUuid + " to bell at " + bellBlock.getLocation());
+        
+        return newUuid;
+    }
+    
+    /**
+     * Fallback method to get or create UUID from storage when PDC is not available.
+     * 
+     * @param bellBlock The bell block
+     * @return The UUID for this bell block
+     */
+    private UUID getOrCreateUuidFromStorage(Block bellBlock) {
+        var chunk = bellBlock.getChunk();
+        UUID storedUuid = villageStorage.getVillageUuid(bellBlock.getWorld(), chunk.getX(), chunk.getZ());
+        
+        if (storedUuid != null) {
+            return storedUuid;
+        }
+        
+        // Generate new UUID and store it
+        UUID newUuid = UUID.randomUUID();
+        villageStorage.setVillageUuid(bellBlock.getWorld(), chunk.getX(), chunk.getZ(), newUuid);
         
         return newUuid;
     }
