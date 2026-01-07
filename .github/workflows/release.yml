@@ -35,6 +35,13 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
       
+      - name: Download CommandAPI dependency
+        run: |
+          mkdir -p libs
+          curl -L -o libs/commandapi-bukkit-shade-11.1.0.jar \
+            "https://hangarcdn.papermc.io/plugins/Skepter/CommandAPI/versions/11.1.0/PAPER/CommandAPI-11.1.0-Paper.jar"
+          ls -la libs/
+      
       - name: Extract version from tag
         id: tag_version
         run: |
