@@ -220,6 +220,23 @@ All command execution including parameter validation, operation results, and err
 [INFO] [14:23:45] [Command] Village 550e8400-e29b-41d4-a716-446655440000 named to 'My Village' by PlayerName
 ```
 
+### BLUEMAP (via GENERAL category)
+BlueMap integration operations including API access, marker creation, updates, and removal.
+
+**Components:**
+- `BlueMapIntegration` - Main integration class
+- `BlueMapMarkerManager` - Marker management
+
+**Example:**
+```
+[DEBUG] [14:23:45] [General] Initializing BlueMap integration...
+[DEBUG] [14:23:45] [General] BlueMap plugin found: BlueMap v3.0.0
+[DEBUG] [14:23:45] [General] Found BlueMap API via BlueMapAPI.getInstance()
+[INFO] [14:23:45] [General] BlueMap integration enabled successfully
+[DEBUG] [14:23:45] [General] Creating BlueMap markers for village: My Village
+[INFO] [14:23:45] [General] Created BlueMap markers for village: My Village (POI: yes, Shape: yes)
+```
+
 ## Configuration
 
 Logging behavior is controlled through the `config.yml` file under the `debug:` section:

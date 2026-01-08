@@ -15,6 +15,7 @@ This guide covers installing and configuring the Villages plugin for your Minecr
 - **WorldGuard 7.0.9+** - For region protection features
 - **WorldEdit 7.3.0+** - Required by WorldGuard
 - **RegionGuard** - Alternative to WorldGuard (lighter weight)
+- **BlueMap** - For web map integration with village markers
 
 ## Installation Steps
 
@@ -35,6 +36,16 @@ If you want region protection features:
 1. Download WorldEdit from [EngineHub](https://enginehub.org/worldedit)
 2. Download WorldGuard from [EngineHub](https://enginehub.org/worldguard)
 3. Place both JARs in your `plugins` folder
+
+#### BlueMap (Optional)
+
+If you want village markers on your web map:
+
+1. Download BlueMap from [Modrinth](https://modrinth.com/plugin/bluemap) or [GitHub](https://github.com/BlueMap-Minecraft/BlueMap)
+2. Place the JAR in your `plugins` folder
+3. Configure BlueMap according to its documentation
+4. Place a village icon at `plugins/BlueMap/web/assets/village-icon.png` (or configure custom path)
+5. Enable integration in `config.yml`: `bluemap.enabled: true`
 
 ### 3. Install Villages
 
@@ -65,6 +76,14 @@ entrances:
 signs:
   auto-place: true
   material: OAK_WALL_SIGN
+
+# BlueMap integration
+bluemap:
+  enabled: true
+  icon: "assets/village-icon.png"
+  show-boundaries: true
+  boundary-color: "#FF6B00"
+  boundary-opacity: 0.3
 ```
 
 ### 5. Set Permissions
@@ -255,6 +274,15 @@ If you switch to SQLite:
 1. Verify WorldGuard is installed
 2. Check `/village info` shows "worldguard" as provider
 3. Ensure village has boundary: `/village border show`
+
+### BlueMap Markers Not Appearing
+
+1. Verify BlueMap is installed and enabled
+2. Check server logs for "BlueMap integration enabled successfully"
+3. Ensure `bluemap.enabled: true` in config.yml
+4. Verify village icon exists at `plugins/BlueMap/web/assets/village-icon.png`
+5. Check that villages have been detected (use `/village info`)
+6. See `docs/BLUEMAP.md` for detailed troubleshooting
 
 ### Performance Issues
 

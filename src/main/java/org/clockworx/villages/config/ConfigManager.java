@@ -533,4 +533,60 @@ public class ConfigManager {
     public boolean shouldIncludeDebugInFile() {
         return config.getBoolean("logging.file.include-debug", true);
     }
+    
+    // ==================== BlueMap Configuration ====================
+    
+    /**
+     * Checks if BlueMap integration is enabled.
+     * 
+     * @return true if BlueMap integration is enabled
+     */
+    public boolean isBlueMapEnabled() {
+        return config.getBoolean("bluemap.enabled", true);
+    }
+    
+    /**
+     * Gets the icon path for village markers.
+     * 
+     * @return The icon path
+     */
+    public String getBlueMapIcon() {
+        return config.getString("bluemap.icon", "assets/village-icon.png");
+    }
+    
+    /**
+     * Checks if village boundaries should be shown on the map.
+     * 
+     * @return true if boundaries should be shown
+     */
+    public boolean isBlueMapShowBoundaries() {
+        return config.getBoolean("bluemap.show-boundaries", true);
+    }
+    
+    /**
+     * Gets the boundary outline color in hex format.
+     * 
+     * @return The color as a hex string (e.g., "#FF6B00")
+     */
+    public String getBlueMapBoundaryColor() {
+        return config.getString("bluemap.boundary-color", "#FF6B00");
+    }
+    
+    /**
+     * Gets the boundary fill opacity.
+     * 
+     * @return Opacity value between 0.0 and 1.0
+     */
+    public double getBlueMapBoundaryOpacity() {
+        return config.getDouble("bluemap.boundary-opacity", 0.3);
+    }
+    
+    /**
+     * Gets the label for the marker set in BlueMap UI.
+     * 
+     * @return The marker set label
+     */
+    public String getBlueMapMarkerSetLabel() {
+        return config.getString("bluemap.marker-set-label", "Villages");
+    }
 }

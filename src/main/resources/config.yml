@@ -179,3 +179,29 @@ debug:
   
   # Log entrance detection
   log-entrances: false
+
+# =============================================================================
+# BlueMap Integration
+# =============================================================================
+# Settings for BlueMap marker integration.
+# Villages will appear on BlueMap with icons and boundary outlines.
+
+bluemap:
+  # Enable BlueMap integration
+  enabled: true
+  
+  # Icon path for village markers (relative to BlueMap assets directory)
+  # Default: "assets/village-icon.png"
+  icon: "assets/village-icon.png"
+  
+  # Show village boundary outlines on the map
+  show-boundaries: true
+  
+  # Boundary outline color (hex format, e.g., "#FF6B00")
+  boundary-color: "#FF6B00"
+  
+  # Boundary fill opacity (0.0 to 1.0, where 0.0 is transparent and 1.0 is opaque)
+  boundary-opacity: 0.3
+  
+  # Label for the marker set in BlueMap UI
+  marker-set-label: "Villages"

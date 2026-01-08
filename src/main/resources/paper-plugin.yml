@@ -17,3 +17,6 @@ dependencies:
     RegionGuard:
       load: BEFORE
       required: false
+    BlueMap:
+      load: AFTER
+      required: false
