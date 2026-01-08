@@ -15,6 +15,7 @@ import org.clockworx.villages.integration.BlueMapIntegration;
 import org.clockworx.villages.regions.RegionManager;
 import org.clockworx.villages.signs.WelcomeSignPlacer;
 import org.clockworx.villages.storage.StorageManager;
+import org.clockworx.villages.tasks.VillageRecheckTask;
 import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
@@ -71,6 +72,10 @@ public class VillagesPlugin extends JavaPlugin {
     
     // Listeners
     private VillageChunkListener chunkListener;
+    
+    // Tasks
+    private VillageRecheckTask recheckTask;
+    private int recheckTaskId = -1;
     
     // Integrations
     private BlueMapIntegration blueMapIntegration;
@@ -176,6 +181,18 @@ public class VillagesPlugin extends JavaPlugin {
         
         pluginLogger.debug(LogCategory.GENERAL, "Event listeners registered");
         
+        // ===== Phase 5.5: Scheduled Tasks =====
+        // Start periodic village recheck task if interval is configured
+        int recheckInterval = configManager.getRecalculateInterval();
+        if (recheckInterval > 0) {
+            this.recheckTask = new VillageRecheckTask(this, villageManager, signManager, storageManager);
+            this.recheckTaskId = recheckTask.runTaskTimer(this, recheckInterval, recheckInterval).getTaskId();
+            pluginLogger.info("Periodic village recheck enabled (interval: " + recheckInterval + " ticks = " + 
+                (recheckInterval / 20) + " seconds)");
+        } else {
+            pluginLogger.debug(LogCategory.GENERAL, "Periodic village recheck disabled (interval: 0)");
+        }
+        
         // ===== Phase 6: Commands =====
         CommandAPI.onEnable();
         
@@ -238,6 +255,15 @@ public class VillagesPlugin extends JavaPlugin {
                 if (pluginLogger != null) {
                     pluginLogger.warning("Error shutting down region manager: " + e.getMessage());
                 }
+            }
+        }
+        
+        // Cancel scheduled tasks
+        if (recheckTaskId != -1) {
+            getServer().getScheduler().cancelTask(recheckTaskId);
+            recheckTaskId = -1;
+            if (pluginLogger != null) {
+                pluginLogger.debug(LogCategory.GENERAL, "Village recheck task cancelled");
             }
         }
         
