@@ -9,9 +9,12 @@ import org.bukkit.block.Sign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
 import org.clockworx.villages.VillagesPlugin;
+import org.clockworx.villages.signs.*;
 import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -30,13 +33,8 @@ public class SignManager {
     private final VillagesPlugin plugin;
     private final PluginLogger logger;
     
-    // The four cardinal directions where we'll place signs
-    private static final BlockFace[] CARDINAL_DIRECTIONS = {
-        BlockFace.NORTH,
-        BlockFace.SOUTH,
-        BlockFace.EAST,
-        BlockFace.WEST
-    };
+    // Biome-specific sign placement strategies
+    private final Map<VillageBiomeDetector.VillageBiomeType, BiomeSignPlacementStrategy> strategies;
     
     /**
      * Creates a new SignManager.
@@ -46,6 +44,36 @@ public class SignManager {
     public SignManager(VillagesPlugin plugin) {
         this.plugin = plugin;
         this.logger = plugin.getPluginLogger();
+        this.strategies = initializeStrategies();
+    }
+    
+    /**
+     * Initializes biome-specific sign placement strategies.
+     */
+    private Map<VillageBiomeDetector.VillageBiomeType, BiomeSignPlacementStrategy> initializeStrategies() {
+        Map<VillageBiomeDetector.VillageBiomeType, BiomeSignPlacementStrategy> map = new HashMap<>();
+        map.put(VillageBiomeDetector.VillageBiomeType.PLAINS, new PlainsSignPlacementStrategy());
+        map.put(VillageBiomeDetector.VillageBiomeType.DESERT, new DesertSignPlacementStrategy());
+        map.put(VillageBiomeDetector.VillageBiomeType.SAVANNA, new SavannaSignPlacementStrategy());
+        map.put(VillageBiomeDetector.VillageBiomeType.TAIGA, new TaigaSignPlacementStrategy());
+        map.put(VillageBiomeDetector.VillageBiomeType.SNOWY_PLAINS, new SnowyPlainsSignPlacementStrategy());
+        // Default fallback for unknown biomes
+        map.put(VillageBiomeDetector.VillageBiomeType.UNKNOWN, new PlainsSignPlacementStrategy());
+        return map;
+    }
+    
+    /**
+     * Gets the appropriate sign placement strategy for a bell block's biome.
+     */
+    private BiomeSignPlacementStrategy getStrategy(Block bellBlock) {
+        VillageBiomeDetector.VillageBiomeType biomeType = VillageBiomeDetector.detectBiomeType(bellBlock);
+        BiomeSignPlacementStrategy strategy = strategies.get(biomeType);
+        if (strategy == null) {
+            logger.debug(LogCategory.GENERAL, "No strategy found for biome type " + biomeType + ", using default");
+            strategy = strategies.get(VillageBiomeDetector.VillageBiomeType.PLAINS);
+        }
+        logger.debug(LogCategory.GENERAL, "Using " + biomeType + " sign placement strategy for bell at " + bellBlock.getLocation());
+        return strategy;
     }
     
     /**
@@ -72,16 +100,8 @@ public class SignManager {
     /**
      * Places or updates signs on all four sides of a bell block with the village name or UUID.
      * 
-     * This method:
-     * 1. Gets the bell's location
-     * 2. For each cardinal direction, tries to place a sign two blocks away (at the base)
-     * 3. If the block below is not replaceable, falls back to the same level as the bell
-     * 4. Checks if a sign already exists at the target location and updates it if so
-     * 5. Otherwise checks if the target block is air or a replaceable block (like grass, flowers, etc.)
-     * 6. Places a wall sign facing the bell
-     * 7. Sets the sign text to display the name (if provided) or UUID (if name is null)
-     * 
-     * Placing signs two blocks away prevents them from blocking bell access.
+     * This method uses biome-specific placement strategies to ensure signs are placed
+     * aesthetically based on the village's biome type.
      * 
      * @param bellBlock The bell block to place signs around
      * @param villageUuid The UUID to display on the signs (used as fallback if name is null)
@@ -91,49 +111,33 @@ public class SignManager {
         logger.debug(LogCategory.GENERAL, "placeSignsAroundBell called for village " + villageUuid + 
             " at bell " + bellBlock.getLocation() + " with name: " + villageName);
         
-        for (BlockFace direction : CARDINAL_DIRECTIONS) {
-            // First, try to place the sign two blocks away horizontally, one block down (at the base)
-            // This prevents signs from blocking bell access
-            Block signBlock = bellBlock.getRelative(direction).getRelative(direction).getRelative(BlockFace.DOWN);
+        // Get biome-specific strategy
+        BiomeSignPlacementStrategy strategy = getStrategy(bellBlock);
+        
+        // Calculate sign positions using the strategy
+        java.util.List<BiomeSignPlacementStrategy.SignPosition> positions = strategy.calculateSignPositions(bellBlock);
+        
+        // Place or update signs at calculated positions
+        for (BiomeSignPlacementStrategy.SignPosition position : positions) {
+            Block signBlock = position.getBlock();
+            BlockFace facing = position.getFacing();
             
             // Check if a sign already exists at this location
             if (isSign(signBlock)) {
-                // Update the existing sign instead of placing a new one
-                updateSign(signBlock, direction, villageUuid, villageName);
-                
-                logger.debug(LogCategory.GENERAL, "Updated existing sign at base level " + signBlock.getLocation() + 
-                    " facing " + direction + " with " + 
+                // Update the existing sign
+                updateSign(signBlock, facing, villageUuid, villageName);
+                logger.debug(LogCategory.GENERAL, "Updated existing sign at " + signBlock.getLocation() + 
+                    " facing " + facing + " with " + 
                     (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
-            } else if (canPlaceSign(signBlock)) {
-                // Place a wall sign facing away from the bell (in the same direction as placement)
-                placeWallSign(signBlock, direction, villageUuid, villageName);
-                
-                logger.debug(LogCategory.GENERAL, "Placed sign at base level " + signBlock.getLocation() + 
-                    " facing " + direction + " (away from bell) with " + 
+            } else if (strategy.canPlaceSign(signBlock)) {
+                // Place a new wall sign
+                placeWallSign(signBlock, facing, villageUuid, villageName);
+                logger.debug(LogCategory.GENERAL, "Placed sign at " + signBlock.getLocation() + 
+                    " facing " + facing + " with " + 
                     (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
             } else {
-                // Fall back to the same level as the bell if the base block isn't replaceable
-                Block fallbackBlock = bellBlock.getRelative(direction).getRelative(direction);
-                
-                // Check if a sign already exists at the fallback location
-                if (isSign(fallbackBlock)) {
-                    // Update the existing sign instead of placing a new one
-                    updateSign(fallbackBlock, direction, villageUuid, villageName);
-                    
-                    logger.debug(LogCategory.GENERAL, "Updated existing sign at bell level " + fallbackBlock.getLocation() + 
-                        " facing " + direction + " with " + 
-                        (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
-                } else if (canPlaceSign(fallbackBlock)) {
-                    // Place a wall sign facing away from the bell (in the same direction as placement)
-                    placeWallSign(fallbackBlock, direction, villageUuid, villageName);
-                    
-                    logger.debug(LogCategory.GENERAL, "Placed sign at bell level " + fallbackBlock.getLocation() + 
-                        " facing " + direction + " (away from bell) with " + 
-                        (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
-                } else {
-                    logger.debug(LogCategory.GENERAL, "Cannot place sign at " + signBlock.getLocation() + 
-                        " or " + fallbackBlock.getLocation() + " - blocks are not replaceable");
-                }
+                logger.debug(LogCategory.GENERAL, "Cannot place sign at " + signBlock.getLocation() + 
+                    " - block is not replaceable");
             }
         }
     }
@@ -209,7 +213,9 @@ public class SignManager {
      * 
      * @param block The block to check
      * @return true if the block can be replaced (air or replaceable materials)
+     * @deprecated Use strategy.canPlaceSign() instead
      */
+    @Deprecated
     private boolean canPlaceSign(Block block) {
         Material type = block.getType();
         // Air and various replaceable blocks (grass, flowers, etc.) can be replaced

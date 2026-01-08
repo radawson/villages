@@ -154,6 +154,15 @@ Located in `org.clockworx.villages.model`:
 - **VillagePoi** - Point of Interest (bell, bed, job site)
 - **VillageEntrance** - Entry point with facing direction
 
+### Bell Merging System
+
+The plugin automatically merges multiple bells within the same village polygon:
+
+1. **Boundary Check** - Before creating a new village, checks if bell location is within any existing village's boundary
+2. **PDC Synchronization** - All bells in the same village share the same UUID in their Persistent Data Containers
+3. **Boundary Recalculation** - When bells are merged, village boundary is recalculated to ensure accurate coverage
+4. **Storage Integration** - Uses `StorageManager.findVillageAt()` to check for existing villages at bell location
+
 ### Boundary Calculation
 
 Located in `org.clockworx.villages.boundary`:
@@ -193,6 +202,14 @@ Located in `org.clockworx.villages.signs`:
 - **WelcomeSignPlacer** - Places/updates welcome signs at entrances
 - Configurable text with %village_name% placeholder
 - Non-destructive placement
+- **BiomeSignPlacementStrategy** - Interface for biome-specific sign placement strategies
+- **VillageBiomeDetector** - Detects village biome type for sign placement
+- **Biome-Specific Strategies** - Custom placement for each biome:
+  - PlainsSignPlacementStrategy - Standard placement
+  - DesertSignPlacementStrategy - Sandstone structure-aware
+  - SavannaSignPlacementStrategy - Acacia structure-aware
+  - TaigaSignPlacementStrategy - Spruce structure-aware
+  - SnowyPlainsSignPlacementStrategy - Snow layer-aware
 
 ### Commands
 
@@ -208,10 +225,13 @@ Located in `org.clockworx.villages.commands`:
 ```
 Chunk Loads → ChunkLoadEvent → Scan for Bells → For each Bell:
     → Check PDC for UUID
-    → Check Storage for existing village
-    → Create/Update Village object
+    → Check Storage for existing village by bell location
+    → Check if bell is within existing village boundary (bell merging)
+    → If merged: Update PDC, recalculate boundary
+    → If new: Create Village object
     → Calculate Boundary (NMS POI scan)
     → Detect Entrances
+    → Place Signs (biome-aware placement)
     → Create Region (if configured)
     → Place Welcome Signs (if configured)
     → Save to Storage

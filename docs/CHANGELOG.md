@@ -5,6 +5,55 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - Biome-Aware Sign Placement and Bell Merging
+
+### Added
+
+#### Biome-Aware Sign Placement
+- **Biome Detection** - Automatic detection of village biome type (Plains, Desert, Savanna, Taiga, Snowy Plains)
+- **Biome-Specific Strategies** - Custom sign placement strategies for each biome type
+  - **Plains**: Standard placement (2 blocks away, 1 block down)
+  - **Desert**: Adjusted for sandstone structures and wells
+  - **Savanna**: Ground-level placement for acacia structures
+  - **Taiga**: Standard placement for spruce structures
+  - **Snowy Plains**: Snow-aware placement accounting for snow layers
+- **Strategy Pattern** - Extensible system for adding new biome-specific behaviors
+- **VillageBiomeDetector** - Utility class for detecting village biome types
+
+#### Bell Merging System
+- **Automatic Bell Merging** - Bells within the same village polygon are now automatically merged into a single village
+- **Boundary-Based Detection** - Checks if a bell is within an existing village's boundary before creating a new village
+- **Boundary Recalculation** - Village boundaries are recalculated when bells are merged to ensure accurate coverage
+- **PDC Synchronization** - All bells in the same village share the same UUID stored in their Persistent Data Containers
+
+### Changed
+- **SignManager** - Refactored to use biome-specific placement strategies instead of fixed algorithm
+- **VillageManager.getOrCreateVillage()** - Now checks for existing villages at bell location before creating new ones
+- Sign placement now adapts to biome-specific village structures for better aesthetics
+
+### Fixed
+- **Overlapping Bells** - Multiple bells in the same village polygon no longer create separate villages
+- **Sign Placement** - Signs are now placed appropriately for each biome's village structure (wells, posts, buildings)
+
+### Technical Details
+
+#### New Classes
+- `org.clockworx.villages.signs.BiomeSignPlacementStrategy` - Interface for biome-specific sign placement
+- `org.clockworx.villages.signs.VillageBiomeDetector` - Biome detection utility
+- `org.clockworx.villages.signs.PlainsSignPlacementStrategy` - Plains biome strategy
+- `org.clockworx.villages.signs.DesertSignPlacementStrategy` - Desert biome strategy
+- `org.clockworx.villages.signs.SavannaSignPlacementStrategy` - Savanna biome strategy
+- `org.clockworx.villages.signs.TaigaSignPlacementStrategy` - Taiga biome strategy
+- `org.clockworx.villages.signs.SnowyPlainsSignPlacementStrategy` - Snowy Plains biome strategy
+
+#### Bell Merging Flow
+1. When a bell is detected, check if it has an existing UUID in PDC
+2. If no UUID, check if bell location is within any existing village's boundary
+3. If within boundary, merge bell into existing village (update PDC, recalculate boundary)
+4. If not within boundary, create new village as before
+
+---
+
 ## [0.2.3] - File Logging
 
 ### Added

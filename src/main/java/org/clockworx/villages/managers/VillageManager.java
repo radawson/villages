@@ -105,6 +105,31 @@ public class VillageManager {
             return village;
         }
         
+        // Check if this bell is within an existing village's boundary (bell merging)
+        logger.debug(LogCategory.GENERAL, "Checking if bell is within existing village boundary for merging");
+        Optional<Village> existingVillage = storageManager.findVillageAt(worldName, x, y, z).join();
+        if (existingVillage.isPresent()) {
+            Village village = existingVillage.get();
+            logger.info(LogCategory.GENERAL, "Bell at " + bellBlock.getLocation() + 
+                " is within existing village " + village.getId() + " boundary, merging bells");
+            
+            // Update bell's PDC with existing village UUID
+            setUuidInPdc(bellBlock, village.getId());
+            
+            // Optionally recalculate boundary to ensure it encompasses all bells
+            // This helps if the new bell extends the village boundary
+            logger.debug(LogCategory.GENERAL, "Recalculating boundary for village " + village.getId() + " after bell merge");
+            VillageBoundary newBoundary = boundaryCalculator.calculateAndPopulate(village);
+            if (newBoundary != null) {
+                village.setBoundary(newBoundary);
+                // Save updated village asynchronously
+                saveVillageAsync(village);
+                logger.debug(LogCategory.GENERAL, "Updated boundary for village " + village.getId() + " after bell merge");
+            }
+            
+            return village;
+        }
+        
         // Create new village
         UUID newUuid = existingUuid != null ? existingUuid : UUID.randomUUID();
         logger.debug(LogCategory.GENERAL, "Creating new village with UUID: " + newUuid);
