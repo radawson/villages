@@ -69,6 +69,8 @@ detection:
   
   # Recalculate village boundaries periodically (in ticks, 0 to disable)
   # 72000 ticks = 1 hour
+  # During recheck: scans loaded chunks for bells, merges them into existing villages,
+  # and recalculates boundaries to catch POI changes
   recalculate-interval: 72000
   
   # Minimum distance between village bells to be considered separate villages

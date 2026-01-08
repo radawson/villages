@@ -56,6 +56,14 @@ bluemap:
 
 ### Added
 
+#### Periodic Village Recheck System
+- **Automatic Recheck Task** - Periodically scans loaded chunks for bells and merges them into existing villages
+- **Configurable Interval** - Uses `detection.recalculate-interval` config (default: 72000 ticks = 1 hour)
+- **Bell Merging During Recheck** - Bells found during recheck are automatically merged if within existing village boundaries
+- **Boundary Recalculation** - Existing village boundaries are recalculated during recheck to catch POI changes
+- **Performance Optimized** - Only processes loaded chunks to avoid performance issues
+- **VillageRecheckTask** - New scheduled task class that handles periodic village maintenance
+
 #### Biome-Aware Sign Placement
 - **Biome Detection** - Automatic detection of village biome type (Plains, Desert, Savanna, Taiga, Snowy Plains)
 - **Biome-Specific Strategies** - Custom sign placement strategies for each biome type
@@ -92,12 +100,21 @@ bluemap:
 - `org.clockworx.villages.signs.SavannaSignPlacementStrategy` - Savanna biome strategy
 - `org.clockworx.villages.signs.TaigaSignPlacementStrategy` - Taiga biome strategy
 - `org.clockworx.villages.signs.SnowyPlainsSignPlacementStrategy` - Snowy Plains biome strategy
+- `org.clockworx.villages.tasks.VillageRecheckTask` - Periodic village recheck task
 
 #### Bell Merging Flow
 1. When a bell is detected, check if it has an existing UUID in PDC
 2. If no UUID, check if bell location is within any existing village's boundary
 3. If within boundary, merge bell into existing village (update PDC, recalculate boundary)
 4. If not within boundary, create new village as before
+
+#### Periodic Recheck Flow
+1. Task runs every `recalculate-interval` ticks (default: 72000 = 1 hour)
+2. Scans all loaded chunks in all worlds for bells
+3. Processes bells without UUIDs (triggers merging if within existing village boundaries)
+4. Updates signs for all bells found
+5. Recalculates boundaries for existing villages (only if bell chunk is loaded)
+6. Only processes loaded chunks to avoid performance issues
 
 ---
 

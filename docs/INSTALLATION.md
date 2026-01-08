@@ -178,6 +178,31 @@ Example: `/village migrate yaml sqlite`
 
 This copies all village data from the source to the destination.
 
+## Periodic Village Recheck
+
+The plugin includes a periodic recheck system that scans loaded chunks for bells and merges them into existing villages:
+
+```yaml
+detection:
+  # Recalculate village boundaries periodically (in ticks, 0 to disable)
+  # 72000 ticks = 1 hour
+  # During recheck: scans loaded chunks for bells, merges them into existing villages,
+  # and recalculates boundaries to catch POI changes
+  recalculate-interval: 72000
+```
+
+**What the recheck does:**
+- Scans all loaded chunks in all worlds for bells
+- Merges bells into existing villages if they're within village boundaries
+- Updates signs around all bells found
+- Recalculates boundaries for existing villages to catch POI changes
+- Only processes loaded chunks (for performance)
+
+**Performance Notes:**
+- Set to `0` to disable periodic recheck (bells still detected on chunk load)
+- Lower intervals increase server load but catch changes faster
+- Higher intervals reduce load but may miss changes until chunks reload
+
 ## Debug Configuration
 
 For troubleshooting, enable debug logging in `config.yml`:

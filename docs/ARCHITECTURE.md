@@ -218,6 +218,17 @@ Located in `org.clockworx.villages.commands`:
 - **VillageCommands** - Extended command handler using CommandAPI
 - Subcommands for: name, info, border, entrance, region, admin
 
+### Scheduled Tasks
+
+Located in `org.clockworx.villages.tasks`:
+
+- **VillageRecheckTask** - Periodic task that rechecks villages for bell merging and boundary recalculation
+- Runs at configurable interval (default: 72000 ticks = 1 hour)
+- Scans all loaded chunks for bells
+- Merges bells into existing villages if within boundaries
+- Recalculates boundaries for existing villages to catch POI changes
+- Only processes loaded chunks for performance
+
 ### BlueMap Integration
 
 Located in `org.clockworx.villages.integration`:
@@ -249,6 +260,12 @@ Chunk Loads → ChunkLoadEvent → Scan for Bells → For each Bell:
     → Create Region (if configured)
     → Place Welcome Signs (if configured)
     → Save to Storage
+
+Periodic Recheck (every recalculate-interval ticks):
+    → Scan all loaded chunks for bells
+    → Process bells without UUIDs (triggers merging)
+    → Update signs for all bells found
+    → Recalculate boundaries for existing villages (if bell chunk loaded)
 ```
 
 ### Command Flow
