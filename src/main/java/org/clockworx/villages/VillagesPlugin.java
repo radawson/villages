@@ -12,6 +12,8 @@ import org.clockworx.villages.listeners.VillageChunkListener;
 import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.managers.VillageManager;
 import org.clockworx.villages.integration.BlueMapIntegration;
+import org.clockworx.villages.naming.TerrainFeatureDetector;
+import org.clockworx.villages.naming.VillageNameGenerator;
 import org.clockworx.villages.regions.RegionManager;
 import org.clockworx.villages.signs.WelcomeSignPlacer;
 import org.clockworx.villages.storage.StorageManager;
@@ -69,6 +71,10 @@ public class VillagesPlugin extends JavaPlugin {
     private EntranceDetector entranceDetector;
     private EntranceMarker entranceMarker;
     private WelcomeSignPlacer welcomeSignPlacer;
+    
+    // Naming components
+    private TerrainFeatureDetector terrainFeatureDetector;
+    private VillageNameGenerator nameGenerator;
     
     // Listeners
     private VillageChunkListener chunkListener;
@@ -140,9 +146,16 @@ public class VillagesPlugin extends JavaPlugin {
         this.welcomeSignPlacer = new WelcomeSignPlacer(this);
         pluginLogger.debug(LogCategory.GENERAL, "Welcome sign placer ready");
         
+        // Initialize terrain feature detector and name generator
+        this.terrainFeatureDetector = new TerrainFeatureDetector(pluginLogger);
+        this.nameGenerator = new VillageNameGenerator(this, terrainFeatureDetector);
+        pluginLogger.debug(LogCategory.GENERAL, "Village name generator ready");
+        
         // ===== Phase 4: Core Managers =====
         // Initialize VillageManager with storage and boundary calculator
         this.villageManager = new VillageManager(this, storageManager, boundaryCalculator);
+        // Set name generator in village manager
+        villageManager.setNameGenerator(nameGenerator);
         this.signManager = new SignManager(this);
         
         // Initialize region manager
@@ -185,7 +198,7 @@ public class VillagesPlugin extends JavaPlugin {
         // Start periodic village recheck task if interval is configured
         int recheckInterval = configManager.getRecalculateInterval();
         if (recheckInterval > 0) {
-            this.recheckTask = new VillageRecheckTask(this, villageManager, signManager, storageManager);
+            this.recheckTask = new VillageRecheckTask(this, villageManager, signManager, storageManager, nameGenerator);
             this.recheckTaskId = recheckTask.runTaskTimer(this, recheckInterval, recheckInterval).getTaskId();
             pluginLogger.info("Periodic village recheck enabled (interval: " + recheckInterval + " ticks = " + 
                 (recheckInterval / 20) + " seconds)");
@@ -299,6 +312,9 @@ public class VillagesPlugin extends JavaPlugin {
         }
         if (welcomeSignPlacer != null) {
             welcomeSignPlacer.reload();
+        }
+        if (nameGenerator != null) {
+            nameGenerator.reload();
         }
         if (blueMapIntegration != null) {
             blueMapIntegration.reload();

@@ -211,6 +211,25 @@ Located in `org.clockworx.villages.signs`:
   - TaigaSignPlacementStrategy - Spruce structure-aware
   - SnowyPlainsSignPlacementStrategy - Snow layer-aware
 
+### Naming System
+
+Located in `org.clockworx.villages.naming`:
+
+- **VillageNameGenerator** - Generates automatic names using adjective+noun patterns
+- **TerrainFeatureDetector** - Detects terrain features (coastal, rivers, mountains, forests)
+- **Biome-Specific Naming** - Names are generated based on village biome type
+- **Configurable Word Lists** - All naming words stored in `names.yml` for customization
+- **Terrain Feature Modifiers** - Coastal villages can use special naming (e.g., "Port Harbor", "Seaside Cove")
+- **Automatic Naming Triggers** - Villages are named on creation and during periodic recheck
+- **Never Overrides Player Names** - Only unnamed villages receive automatic names
+
+Features:
+- Adjective+noun pattern (e.g., "Green Meadow", "Golden Harbor")
+- Biome-specific word lists (Plains, Desert, Savanna, Taiga, Snowy Plains)
+- Coastal detection using boundary scanning and radius checking
+- Future support for river, mountain, and forest detection
+- Word lists loaded from `names.yml` on startup and can be reloaded
+
 ### Commands
 
 Located in `org.clockworx.villages.commands`:
@@ -255,6 +274,7 @@ Chunk Loads → ChunkLoadEvent → Scan for Bells → For each Bell:
     → If merged: Update PDC, recalculate boundary
     → If new: Create Village object
     → Calculate Boundary (NMS POI scan)
+    → Generate Name (if unnamed, using biome and terrain features)
     → Detect Entrances
     → Place Signs (biome-aware placement)
     → Create Region (if configured)
@@ -266,6 +286,7 @@ Periodic Recheck (every recalculate-interval ticks):
     → Process bells without UUIDs (triggers merging)
     → Update signs for all bells found
     → Recalculate boundaries for existing villages (if bell chunk loaded)
+    → Generate names for unnamed villages (if name generator available)
 ```
 
 ### Command Flow

@@ -10,6 +10,7 @@ import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.boundary.VillageBoundaryCalculator;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
+import org.clockworx.villages.naming.VillageNameGenerator;
 import org.clockworx.villages.storage.StorageManager;
 import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
@@ -40,6 +41,7 @@ public class VillageManager {
     private final NamespacedKey villageUuidKey;
     private final NamespacedKey villageNameKey;
     private final PluginLogger logger;
+    private VillageNameGenerator nameGenerator;
     
     /**
      * Creates a new VillageManager.
@@ -56,6 +58,16 @@ public class VillageManager {
         this.villageUuidKey = new NamespacedKey(plugin, "village_uuid");
         this.villageNameKey = new NamespacedKey(plugin, "village_name");
         this.logger = plugin.getPluginLogger();
+    }
+    
+    /**
+     * Sets the village name generator.
+     * Called during plugin initialization.
+     * 
+     * @param nameGenerator The name generator
+     */
+    public void setNameGenerator(VillageNameGenerator nameGenerator) {
+        this.nameGenerator = nameGenerator;
     }
     
     /**
@@ -146,6 +158,17 @@ public class VillageManager {
         
         // Cache UUID in PDC
         setUuidInPdc(bellBlock, newUuid);
+        
+        // Generate automatic name if village is unnamed
+        if (nameGenerator != null && !village.hasName()) {
+            String generatedName = nameGenerator.generateName(village);
+            if (generatedName != null) {
+                village.setName(generatedName);
+                // Save village with new name
+                saveVillageAsync(village);
+                logger.info(LogCategory.GENERAL, "Auto-named village " + newUuid + " to: " + generatedName);
+            }
+        }
         
         // Notify BlueMap integration (if enabled)
         if (plugin.getBlueMapIntegration() != null && plugin.getBlueMapIntegration().isEnabled()) {

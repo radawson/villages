@@ -55,6 +55,8 @@ If you want village markers on your web map:
 
 ### 4. Configure the Plugin
 
+#### Main Configuration
+
 Edit `plugins/Villages/config.yml` to customize:
 
 ```yaml

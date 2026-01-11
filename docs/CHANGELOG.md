@@ -5,6 +5,41 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - Automatic Village Naming Engine
+
+### Added
+
+#### Automatic Village Naming
+- **Biome-specific naming** - Villages are automatically named using adjective+noun patterns based on their biome type
+- **Terrain feature detection** - Coastal villages are detected and can use special naming (e.g., "Port Harbor", "Seaside Cove")
+- **Configurable word lists** - All naming words are stored in `names.yml` for easy customization
+- **Automatic naming triggers** - Villages are named on creation and during periodic recheck
+- **Never overrides player names** - Only unnamed villages receive automatic names
+
+#### New Configuration File
+- `names.yml` - Contains word lists for each biome type (Plains, Desert, Savanna, Taiga, Snowy Plains) and terrain features (Coastal)
+- Default word lists included for all supported biomes
+- Easy to customize for server-specific naming themes
+
+#### New Classes
+- `org.clockworx.villages.naming.VillageNameGenerator` - Generates names using configurable word lists
+- `org.clockworx.villages.naming.TerrainFeatureDetector` - Detects terrain features (coastal, rivers, mountains, forests)
+
+#### Terrain Feature Detection
+- **Coastal detection** - Uses boundary scanning and radius checking to identify villages near water
+- **Future support** - Framework in place for river, mountain, and forest detection
+
+### Changed
+- `VillageManager` now automatically generates names for new villages if unnamed
+- `VillageRecheckTask` now generates names for unnamed villages during periodic recheck
+- `VillagesPlugin` initializes naming system on startup
+
+### Technical Details
+- Names are generated using adjective+noun patterns (e.g., "Green Meadow", "Golden Harbor")
+- Biome detection uses existing `VillageBiomeDetector` from sign placement system
+- Coastal detection checks both village boundary perimeter and a 50-block radius around the bell
+- Word lists are loaded from `names.yml` on plugin startup and can be reloaded
+
 ## [0.3.0] - BlueMap Integration
 
 ### Added

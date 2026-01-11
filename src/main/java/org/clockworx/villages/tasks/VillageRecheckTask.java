@@ -9,6 +9,7 @@ import org.clockworx.villages.VillagesPlugin;
 import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.managers.VillageManager;
 import org.clockworx.villages.model.Village;
+import org.clockworx.villages.naming.VillageNameGenerator;
 import org.clockworx.villages.storage.StorageManager;
 import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
@@ -35,6 +36,7 @@ public class VillageRecheckTask extends BukkitRunnable {
     private final SignManager signManager;
     private final StorageManager storageManager;
     private final PluginLogger logger;
+    private final VillageNameGenerator nameGenerator;
     
     /**
      * Creates a new VillageRecheckTask.
@@ -43,14 +45,17 @@ public class VillageRecheckTask extends BukkitRunnable {
      * @param villageManager The village manager
      * @param signManager The sign manager
      * @param storageManager The storage manager
+     * @param nameGenerator The village name generator (may be null)
      */
     public VillageRecheckTask(VillagesPlugin plugin, VillageManager villageManager, 
-                              SignManager signManager, StorageManager storageManager) {
+                              SignManager signManager, StorageManager storageManager,
+                              VillageNameGenerator nameGenerator) {
         this.plugin = plugin;
         this.villageManager = villageManager;
         this.signManager = signManager;
         this.storageManager = storageManager;
         this.logger = plugin.getPluginLogger();
+        this.nameGenerator = nameGenerator;
     }
     
     @Override
@@ -60,6 +65,7 @@ public class VillageRecheckTask extends BukkitRunnable {
         int totalBellsFound = 0;
         int bellsMerged = 0;
         int villagesRecalculated = 0;
+        int villagesNamed = 0;
         
         // Process all loaded worlds
         for (World world : plugin.getServer().getWorlds()) {
@@ -100,10 +106,12 @@ public class VillageRecheckTask extends BukkitRunnable {
             }
             
             // Recalculate boundaries for existing villages in this world
+            // Also generate names for unnamed villages
             List<Village> villages = storageManager.loadVillagesInWorld(world).join();
+            
             for (Village village : villages) {
                 if (village.hasBoundary() && village.getBellLocation() != null) {
-                    // Check if bell chunk is loaded before recalculating
+                    // Check if bell chunk is loaded before processing
                     World villageWorld = village.getWorld();
                     if (villageWorld != null) {
                         int bellX = village.getBellX();
@@ -114,6 +122,16 @@ public class VillageRecheckTask extends BukkitRunnable {
                             logger.debug(LogCategory.GENERAL, "Recalculating boundary for village " + village.getId());
                             villageManager.recalculateBoundary(village);
                             villagesRecalculated++;
+                            
+                            // Generate name for unnamed villages
+                            if (nameGenerator != null && !village.hasName()) {
+                                String generatedName = nameGenerator.generateName(village);
+                                if (generatedName != null) {
+                                    villageManager.setVillageName(village, generatedName);
+                                    villagesNamed++;
+                                    logger.debug(LogCategory.GENERAL, "Auto-named village " + village.getId() + " to: " + generatedName);
+                                }
+                            }
                         }
                     }
                 }
@@ -121,7 +139,8 @@ public class VillageRecheckTask extends BukkitRunnable {
         }
         
         logger.info(LogCategory.GENERAL, "Village recheck completed: " + totalBellsFound + " bells found, " + 
-            bellsMerged + " processed, " + villagesRecalculated + " boundaries recalculated");
+            bellsMerged + " processed, " + villagesRecalculated + " boundaries recalculated, " + 
+            villagesNamed + " villages named");
     }
     
     /**

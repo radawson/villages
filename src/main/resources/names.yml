@@ -1,0 +1,113 @@
+# Village Name Generator Configuration
+# This file contains word lists for automatic village naming.
+# Names are generated using adjective + noun patterns, with biome-specific word lists.
+
+# =============================================================================
+# Biome-Specific Word Lists
+# =============================================================================
+# Each biome has 5 adjectives and 5 nouns that can be randomly combined.
+
+plains:
+  adjectives:
+    - Green
+    - Golden
+    - Peaceful
+    - Quiet
+    - Bright
+  nouns:
+    - Meadow
+    - Valley
+    - Hill
+    - Field
+    - Grove
+
+desert:
+  adjectives:
+    - Sandy
+    - Golden
+    - Sunlit
+    - Arid
+    - Warm
+  nouns:
+    - Oasis
+    - Dune
+    - Mesa
+    - Well
+    - Shade
+
+savanna:
+  adjectives:
+    - Rustic
+    - Warm
+    - Open
+    - Sunny
+    - Dry
+  nouns:
+    - Plain
+    - Outpost
+    - Settlement
+    - Camp
+    - Haven
+
+taiga:
+  adjectives:
+    - Pine
+    - Frosty
+    - Cozy
+    - Quiet
+    - Wooded
+  nouns:
+    - Lodge
+    - Cabin
+    - Grove
+    - Post
+    - Rest
+
+snowy_plains:
+  adjectives:
+    - Frosty
+    - Icy
+    - White
+    - Cold
+    - Snowy
+  nouns:
+    - Peak
+    - Valley
+    - Rest
+    - Haven
+    - Post
+
+# =============================================================================
+# Terrain Feature Modifiers
+# =============================================================================
+# These modify the naming when specific terrain features are detected.
+# Coastal villages can use coastal-specific words instead of biome words.
+
+coastal:
+  # Coastal adjectives can replace or supplement biome adjectives
+  adjectives:
+    - Port
+    - Seaside
+    - Coastal
+    - Harbor
+    - Bay
+  # Coastal nouns can replace biome nouns
+  nouns:
+    - Harbor
+    - Port
+    - Cove
+    - Bay
+    - Shore
+
+# Future terrain features (for later implementation):
+# river:
+#   adjectives: [Riverside, Flowing, Waterfront]
+#   nouns: [Ford, Crossing, Bridge]
+# 
+# mountain:
+#   adjectives: [High, Peak, Summit]
+#   nouns: [Peak, Pass, Lookout]
+# 
+# forest:
+#   adjectives: [Wooded, Dense, Shaded]
+#   nouns: [Grove, Glade, Clearing]
