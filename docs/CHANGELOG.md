@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Automatic Village Naming
 - **Biome-specific naming** - Villages are automatically named using adjective+noun patterns based on their biome type
-- **Terrain feature detection** - Coastal villages are detected and can use special naming (e.g., "Port Harbor", "Seaside Cove")
+- **Terrain feature detection** - Coastal villages are detected and can use special naming modifiers
 - **Configurable word lists** - All naming words are stored in `names.yml` for easy customization
 - **Automatic naming triggers** - Villages are named on creation and during periodic recheck
 - **Never overrides player names** - Only unnamed villages receive automatic names
@@ -33,12 +33,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `VillageManager` now automatically generates names for new villages if unnamed
 - `VillageRecheckTask` now generates names for unnamed villages during periodic recheck
 - `VillagesPlugin` initializes naming system on startup
+- **Naming pattern** - Coastal modifiers now use prefix/suffix pattern instead of replacing biome words
+  - Prefix mode: `[coastal adjective] + [biome adjective] + [biome noun]` (e.g., "Port Pine Rest")
+  - Suffix mode: `[biome adjective] + [biome noun] + [coastal noun]` (e.g., "Pine Rest Harbor")
+  - Randomly chooses prefix or suffix mode for coastal villages (50/50 chance)
+
+### Fixed
+- **Sign duplication** - Signs are now properly detected and updated instead of creating duplicates
+  - Added radius-based sign detection (3-block radius) to find existing signs
+  - Signs are verified by reading their content to match village UUID/name
+  - Duplicate signs that don't belong to the current village are automatically removed
+  - Prevents signs from appearing above/below existing signs
 
 ### Technical Details
-- Names are generated using adjective+noun patterns (e.g., "Green Meadow", "Golden Harbor")
+- Names are generated using adjective+noun patterns (e.g., "Green Meadow", "Port Pine Rest", "Pine Rest Harbor")
 - Biome detection uses existing `VillageBiomeDetector` from sign placement system
 - Coastal detection checks both village boundary perimeter and a 50-block radius around the bell
 - Word lists are loaded from `names.yml` on plugin startup and can be reloaded
+- Sign detection uses content matching to identify village signs before placement
+- Duplicate sign removal happens before placing/updating signs at calculated positions
 
 ## [0.3.0] - BlueMap Integration
 

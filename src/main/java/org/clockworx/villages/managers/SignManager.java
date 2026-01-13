@@ -13,7 +13,9 @@ import org.clockworx.villages.signs.*;
 import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -121,6 +123,9 @@ public class SignManager {
         for (BiomeSignPlacementStrategy.SignPosition position : positions) {
             Block signBlock = position.getBlock();
             BlockFace facing = position.getFacing();
+            
+            // Remove duplicate signs in the area before placing/updating
+            removeDuplicateSigns(signBlock, villageUuid, villageName);
             
             // Check if a sign already exists at this location
             if (isSign(signBlock)) {
@@ -372,5 +377,128 @@ public class SignManager {
         }
         
         return parts;
+    }
+    
+    /**
+     * Finds all existing signs within a radius of the center block.
+     * 
+     * @param center The center block to search around
+     * @param radius The radius to search (default: 3 blocks)
+     * @return List of sign blocks found within the radius
+     */
+    private List<Block> findExistingSignsInRadius(Block center, int radius) {
+        List<Block> signs = new ArrayList<>();
+        int centerX = center.getX();
+        int centerY = center.getY();
+        int centerZ = center.getZ();
+        
+        // Search all blocks within radius
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    // Skip the center block itself (we'll handle it separately)
+                    if (dx == 0 && dy == 0 && dz == 0) {
+                        continue;
+                    }
+                    
+                    Block block = center.getWorld().getBlockAt(centerX + dx, centerY + dy, centerZ + dz);
+                    if (isSign(block)) {
+                        signs.add(block);
+                    }
+                }
+            }
+        }
+        
+        return signs;
+    }
+    
+    /**
+     * Checks if a sign belongs to the current village by reading its content.
+     * 
+     * @param signBlock The sign block to check
+     * @param villageUuid The village UUID to match
+     * @param villageName The village name to match (may be null)
+     * @return true if the sign belongs to this village
+     */
+    private boolean isVillageSign(Block signBlock, UUID villageUuid, String villageName) {
+        BlockState state = signBlock.getState();
+        if (!(state instanceof Sign sign)) {
+            return false;
+        }
+        
+        SignSide signSide = sign.getSide(Side.FRONT);
+        
+        // Check first line for "Village:" or "Village UUID:"
+        String firstLine = getSignLineText(signSide, 0);
+        if (firstLine == null || (!firstLine.contains("Village") && !firstLine.contains("UUID"))) {
+            return false;
+        }
+        
+        // If we have a village name, check if it matches
+        if (villageName != null && !villageName.trim().isEmpty()) {
+            // Check if any line contains the village name
+            for (int i = 1; i < 4; i++) {
+                String line = getSignLineText(signSide, i);
+                if (line != null && line.contains(villageName)) {
+                    return true;
+                }
+            }
+        } else {
+            // Check if any line contains the UUID
+            String uuidString = villageUuid.toString();
+            for (int i = 1; i < 4; i++) {
+                String line = getSignLineText(signSide, i);
+                if (line != null && line.contains(uuidString.substring(0, Math.min(13, uuidString.length())))) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Gets the text content from a sign line, handling Kyori Adventure components.
+     * 
+     * @param signSide The sign side to read from
+     * @param lineIndex The line index (0-3)
+     * @return The text content, or null if empty
+     */
+    private String getSignLineText(SignSide signSide, int lineIndex) {
+        Component component = signSide.line(lineIndex);
+        if (component == null) {
+            return null;
+        }
+        
+        // Convert component to plain text
+        String text = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(component);
+        return text.trim().isEmpty() ? null : text.trim();
+    }
+    
+    /**
+     * Removes duplicate signs that don't belong to the current village.
+     * Searches within a radius and removes signs that don't match.
+     * 
+     * @param calculatedPosition The calculated position where a sign should be
+     * @param villageUuid The current village UUID
+     * @param villageName The current village name (may be null)
+     */
+    private void removeDuplicateSigns(Block calculatedPosition, UUID villageUuid, String villageName) {
+        List<Block> nearbySigns = findExistingSignsInRadius(calculatedPosition, 3);
+        
+        for (Block signBlock : nearbySigns) {
+            // Skip if this is the exact calculated position (we'll handle it separately)
+            if (signBlock.getLocation().equals(calculatedPosition.getLocation())) {
+                continue;
+            }
+            
+            // Check if this sign belongs to our village
+            if (!isVillageSign(signBlock, villageUuid, villageName)) {
+                // This sign doesn't belong to our village - remove it
+                logger.debug(LogCategory.GENERAL, "Removing duplicate sign at " + signBlock.getLocation() + 
+                    " that doesn't belong to village " + villageUuid);
+                signBlock.setType(Material.AIR);
+            }
+        }
     }
 }

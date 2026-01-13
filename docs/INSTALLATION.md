@@ -88,6 +88,41 @@ bluemap:
   boundary-opacity: 0.3
 ```
 
+#### Village Naming Configuration
+
+The plugin automatically generates names for villages using adjective+noun patterns. Customize the word lists in `plugins/Villages/names.yml`:
+
+```yaml
+# Biome-specific word lists
+plains:
+  adjectives: [Green, Golden, Peaceful, Quiet, Bright]
+  nouns: [Meadow, Valley, Hill, Field, Grove]
+
+desert:
+  adjectives: [Sandy, Golden, Sunlit, Arid, Warm]
+  nouns: [Oasis, Dune, Mesa, Well, Shade]
+
+# ... other biomes ...
+
+# Terrain feature modifiers (used as prefixes or suffixes)
+coastal:
+  adjectives: [Port, Seaside, Coastal, Harbor, Bay]
+  nouns: [Harbor, Port, Cove, Bay, Shore]
+```
+
+**Naming Patterns:**
+- **Non-coastal villages**: `[biome adjective] [biome noun]` (e.g., "Green Meadow", "Pine Rest")
+- **Coastal villages**: Randomly uses either:
+  - Prefix: `[coastal adjective] [biome adjective] [biome noun]` (e.g., "Port Pine Rest")
+  - Suffix: `[biome adjective] [biome noun] [coastal noun]` (e.g., "Pine Rest Harbor")
+
+The plugin will automatically:
+- Generate names for new villages based on their biome type
+- Detect coastal villages and add coastal modifiers (prefix or suffix)
+- Always preserve biome identity in names (coastal words are modifiers, not replacements)
+- Never override player-assigned names
+- Generate names during periodic recheck for unnamed villages
+
 ### 5. Set Permissions
 
 Default permissions are set for operators only. Configure with your permissions plugin:

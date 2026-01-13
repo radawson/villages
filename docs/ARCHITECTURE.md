@@ -197,8 +197,13 @@ Located in `org.clockworx.villages.detection`:
 
 ### Signs System
 
-Located in `org.clockworx.villages.signs`:
+Located in `org.clockworx.villages.signs` and `org.clockworx.villages.managers`:
 
+- **SignManager** - Manages sign placement around village bells
+  - **Duplicate detection** - Searches for existing signs within a 3-block radius
+  - **Content verification** - Reads sign content to identify village signs
+  - **Automatic cleanup** - Removes duplicate signs that don't belong to the current village
+  - **Biome-aware placement** - Uses biome-specific strategies for aesthetic placement
 - **WelcomeSignPlacer** - Places/updates welcome signs at entrances
 - Configurable text with %village_name% placeholder
 - Non-destructive placement
@@ -211,6 +216,13 @@ Located in `org.clockworx.villages.signs`:
   - TaigaSignPlacementStrategy - Spruce structure-aware
   - SnowyPlainsSignPlacementStrategy - Snow layer-aware
 
+**Sign Placement Flow:**
+1. Calculate sign positions using biome-specific strategy
+2. Search for existing signs within 3-block radius
+3. Remove duplicate signs that don't match current village
+4. Update existing signs that do match
+5. Place new signs only if no matching sign exists
+
 ### Naming System
 
 Located in `org.clockworx.villages.naming`:
@@ -219,12 +231,19 @@ Located in `org.clockworx.villages.naming`:
 - **TerrainFeatureDetector** - Detects terrain features (coastal, rivers, mountains, forests)
 - **Biome-Specific Naming** - Names are generated based on village biome type
 - **Configurable Word Lists** - All naming words stored in `names.yml` for customization
-- **Terrain Feature Modifiers** - Coastal villages can use special naming (e.g., "Port Harbor", "Seaside Cove")
+- **Terrain Feature Modifiers** - Coastal villages use modifiers as prefixes or suffixes
 - **Automatic Naming Triggers** - Villages are named on creation and during periodic recheck
 - **Never Overrides Player Names** - Only unnamed villages receive automatic names
 
+**Naming Patterns:**
+- **Non-coastal**: `[biome adjective] + [biome noun]` (e.g., "Green Meadow", "Pine Rest")
+- **Coastal (prefix mode)**: `[coastal adjective] + [biome adjective] + [biome noun]` (e.g., "Port Pine Rest", "Seaside Golden Meadow")
+- **Coastal (suffix mode)**: `[biome adjective] + [biome noun] + [coastal noun]` (e.g., "Pine Rest Harbor", "Golden Meadow Cove")
+- Randomly chooses prefix or suffix mode for coastal villages (50/50 chance)
+
 Features:
-- Adjective+noun pattern (e.g., "Green Meadow", "Golden Harbor")
+- Always uses biome words for base name (never replaces entirely)
+- Coastal modifiers are added to biome names, not replacements
 - Biome-specific word lists (Plains, Desert, Savanna, Taiga, Snowy Plains)
 - Coastal detection using boundary scanning and radius checking
 - Future support for river, mountain, and forest detection

@@ -142,23 +142,16 @@ public class VillageNameGenerator {
         // Check for terrain features
         boolean isCoastal = terrainDetector.isCoastal(village);
         
-        // Select word lists
-        WordList wordList;
-        if (isCoastal && coastalWordList != null) {
-            // Use coastal words, but fall back to biome words if coastal list is incomplete
-            wordList = coastalWordList;
-            logger.debug(LogCategory.GENERAL, "Using coastal word list for village " + village.getId());
-        } else {
-            wordList = biomeWordLists.get(biomeKey);
-            if (wordList == null) {
-                // Fall back to plains if biome not found
-                wordList = biomeWordLists.get("plains");
-                logger.warning(LogCategory.GENERAL, "Word list not found for biome " + biomeKey + ", using plains");
-            }
+        // Always use biome word list for base name
+        WordList biomeWordList = biomeWordLists.get(biomeKey);
+        if (biomeWordList == null) {
+            // Fall back to plains if biome not found
+            biomeWordList = biomeWordLists.get("plains");
+            logger.warning(LogCategory.GENERAL, "Word list not found for biome " + biomeKey + ", using plains");
         }
         
-        if (wordList == null || wordList.adjectives.isEmpty() || wordList.nouns.isEmpty()) {
-            logger.warning(LogCategory.GENERAL, "Cannot generate name: word list is empty or null");
+        if (biomeWordList == null || biomeWordList.adjectives.isEmpty() || biomeWordList.nouns.isEmpty()) {
+            logger.warning(LogCategory.GENERAL, "Cannot generate name: biome word list is empty or null");
             return null;
         }
         
@@ -169,9 +162,34 @@ public class VillageNameGenerator {
         int maxAttempts = 10;
         
         while (name == null || (usedNames.contains(name) && attempts < maxAttempts)) {
-            String adjective = wordList.adjectives.get(random.nextInt(wordList.adjectives.size()));
-            String noun = wordList.nouns.get(random.nextInt(wordList.nouns.size()));
-            name = adjective + " " + noun;
+            // Always generate base name from biome words
+            String biomeAdjective = biomeWordList.adjectives.get(random.nextInt(biomeWordList.adjectives.size()));
+            String biomeNoun = biomeWordList.nouns.get(random.nextInt(biomeWordList.nouns.size()));
+            
+            // Apply coastal modifiers if applicable
+            if (isCoastal && coastalWordList != null && 
+                !coastalWordList.adjectives.isEmpty() && !coastalWordList.nouns.isEmpty()) {
+                // Randomly choose prefix (50%) or suffix (50%) mode
+                boolean usePrefix = random.nextBoolean();
+                
+                if (usePrefix) {
+                    // Prefix mode: [coastal adjective] + [biome adjective] + [biome noun]
+                    // e.g., "Port Pine Rest"
+                    String coastalAdjective = coastalWordList.adjectives.get(random.nextInt(coastalWordList.adjectives.size()));
+                    name = coastalAdjective + " " + biomeAdjective + " " + biomeNoun;
+                    logger.debug(LogCategory.GENERAL, "Generated coastal prefix name for village " + village.getId());
+                } else {
+                    // Suffix mode: [biome adjective] + [biome noun] + [coastal noun]
+                    // e.g., "Pine Rest Harbor"
+                    String coastalNoun = coastalWordList.nouns.get(random.nextInt(coastalWordList.nouns.size()));
+                    name = biomeAdjective + " " + biomeNoun + " " + coastalNoun;
+                    logger.debug(LogCategory.GENERAL, "Generated coastal suffix name for village " + village.getId());
+                }
+            } else {
+                // Non-coastal: just [biome adjective] + [biome noun]
+                name = biomeAdjective + " " + biomeNoun;
+            }
+            
             attempts++;
         }
         
