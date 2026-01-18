@@ -179,6 +179,7 @@ dependencies:
 The following placeholders are available in flag values:
 
 - `%village_name%` - Village display name (name if set, otherwise shortened UUID)
+  - Reflects regenerated names when `/village name` is used with a blank name
 
 Example:
 ```yaml

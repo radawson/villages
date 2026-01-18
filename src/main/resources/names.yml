@@ -5,7 +5,7 @@
 # =============================================================================
 # Biome-Specific Word Lists
 # =============================================================================
-# Each biome has 5 adjectives and 5 nouns that can be randomly combined.
+# Each biome has 12 adjectives and 12 nouns that can be randomly combined.
 
 plains:
   adjectives:
@@ -14,12 +14,26 @@ plains:
     - Peaceful
     - Quiet
     - Bright
+    - Verdant
+    - Breezy
+    - Rolling
+    - Sunny
+    - Gentle
+    - Open
+    - Lush
   nouns:
     - Meadow
     - Valley
     - Hill
     - Field
     - Grove
+    - Pasture
+    - Prairie
+    - Orchard
+    - Ridge
+    - Hollow
+    - Crossing
+    - Brook
 
 desert:
   adjectives:
@@ -28,12 +42,26 @@ desert:
     - Sunlit
     - Arid
     - Warm
+    - Blazing
+    - Dry
+    - Dusty
+    - Scorched
+    - Ember
+    - Mirage
+    - Windy
   nouns:
     - Oasis
     - Dune
     - Mesa
     - Well
     - Shade
+    - Caravan
+    - Canyon
+    - Spire
+    - Wadi
+    - Basin
+    - Outcrop
+    - Mirage
 
 savanna:
   adjectives:
@@ -42,12 +70,26 @@ savanna:
     - Open
     - Sunny
     - Dry
+    - Amber
+    - Windswept
+    - Wide
+    - Tawny
+    - Sunbaked
+    - Grassy
+    - Vast
   nouns:
     - Plain
     - Outpost
     - Settlement
     - Camp
     - Haven
+    - Ridge
+    - Crossing
+    - Rise
+    - Roost
+    - Bluff
+    - Enclave
+    - Post
 
 taiga:
   adjectives:
@@ -56,12 +98,26 @@ taiga:
     - Cozy
     - Quiet
     - Wooded
+    - Evergreen
+    - Timber
+    - Misty
+    - Shaded
+    - Crisp
+    - Northern
+    - Spruce
   nouns:
     - Lodge
     - Cabin
     - Grove
     - Post
     - Rest
+    - Hollow
+    - Refuge
+    - Trail
+    - Thicket
+    - Watch
+    - Crossing
+    - Clearing
 
 snowy_plains:
   adjectives:
@@ -70,40 +126,118 @@ snowy_plains:
     - White
     - Cold
     - Snowy
+    - Glacier
+    - Bitter
+    - Pale
+    - Frozen
+    - Wintry
+    - Chilled
+    - Silent
   nouns:
     - Peak
     - Valley
     - Rest
     - Haven
     - Post
+    - Hollow
+    - Ridge
+    - Crossing
+    - Shelter
+    - Watch
+    - Camp
+    - Drift
 
 # =============================================================================
 # Terrain Feature Modifiers
 # =============================================================================
 # These modify the naming when specific terrain features are detected.
-# Coastal villages can use coastal-specific words instead of biome words.
+# Terrain feature modifiers add prefix/suffix words around the base adjective+noun.
 
 coastal:
-  # Coastal adjectives can replace or supplement biome adjectives
-  adjectives:
+  prefixes:
     - Port
     - Seaside
     - Coastal
     - Harbor
     - Bay
-  # Coastal nouns can replace biome nouns
-  nouns:
+    - Tide
+    - Salt
+    - Ocean
+    - Breaker
+    - Gull
+    - Wave
+    - Anchor
+  suffixes:
     - Harbor
     - Port
     - Cove
     - Bay
     - Shore
+    - Reef
+    - Strand
+    - Point
+    - Quay
+    - Inlet
+    - Sound
+    - Breakwater
+
+river:
+  prefixes:
+    - River
+    - Riverside
+    - Flowing
+    - Brook
+    - Bend
+    - Delta
+    - Ford
+    - Current
+    - Rapids
+    - Willow
+    - Channel
+    - Stream
+  suffixes:
+    - Ford
+    - Crossing
+    - Bridge
+    - Bend
+    - Reach
+    - Flow
+    - Run
+    - Bank
+    - Channel
+    - Rapids
+    - Shoal
+    - Delta
+
+beach:
+  prefixes:
+    - Beach
+    - Sandy
+    - Shoreline
+    - Dune
+    - Sunlit
+    - Shell
+    - Drift
+    - Tide
+    - Sun
+    - Surf
+    - Palm
+    - Coral
+  suffixes:
+    - Beach
+    - Shore
+    - Dune
+    - Strand
+    - Sands
+    - Surf
+    - Lagoon
+    - Spit
+    - Bight
+    - Bay
+    - Reef
+    - Point
 
 # Future terrain features (for later implementation):
-# river:
-#   adjectives: [Riverside, Flowing, Waterfront]
-#   nouns: [Ford, Crossing, Bridge]
-# 
 # mountain:
 #   adjectives: [High, Peak, Summit]
 #   nouns: [Peak, Pass, Lookout]

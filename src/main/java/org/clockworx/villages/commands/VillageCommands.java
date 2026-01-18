@@ -19,6 +19,7 @@ import org.clockworx.villages.managers.SignManager;
 import org.clockworx.villages.model.Village;
 import org.clockworx.villages.model.VillageBoundary;
 import org.clockworx.villages.model.VillageEntrance;
+import org.clockworx.villages.naming.VillageNameGenerator;
 import org.clockworx.villages.regions.RegionManager;
 import org.clockworx.villages.signs.WelcomeSignPlacer;
 import org.clockworx.villages.storage.StorageManager;
@@ -329,29 +330,48 @@ public class VillageCommands {
     private void handleNameCommand(Player player, String name) {
         logger.debugCommand("Executing /village name command by " + player.getName() + " with name: " + name);
         
-        if (name == null || name.trim().isEmpty()) {
-            logger.warning(LogCategory.COMMAND, "Village name command failed: empty name provided by " + player.getName());
-            player.sendMessage(Component.text("Village name cannot be empty!", NamedTextColor.RED));
-            return;
+        boolean regenerateName = name == null || name.trim().isEmpty();
+        if (regenerateName) {
+            logger.debugCommand("Empty name provided, generating a new name for " + player.getName());
         }
         
         findNearestVillage(player).ifPresentOrElse(village -> {
             logger.debugCommand("Found village " + village.getId() + " for naming by " + player.getName());
-            village.setName(name.trim());
-            
+            String resolvedName = name != null ? name.trim() : "";
+            if (regenerateName) {
+                VillageNameGenerator nameGenerator = plugin.getNameGenerator();
+                if (nameGenerator == null) {
+                    logger.warning(LogCategory.COMMAND, "Village name command failed: name generator not available for " + player.getName());
+                    player.sendMessage(Component.text("Name generator is not available.", NamedTextColor.RED));
+                    return;
+                }
+
+                String generatedName = nameGenerator.generateName(village, true);
+                if (generatedName == null || generatedName.trim().isEmpty()) {
+                    logger.warning(LogCategory.COMMAND, "Village name command failed: could not generate a name for " + village.getId());
+                    player.sendMessage(Component.text("Could not generate a new village name.", NamedTextColor.RED));
+                    return;
+                }
+
+                resolvedName = generatedName.trim();
+            }
+
+            village.setName(resolvedName);
+            final String finalName = resolvedName;
+
             storageManager.saveVillage(village).thenRun(() -> {
                 // Update entrance welcome signs
                 signPlacer.updateSignsAtEntrances(village);
-                
+
                 // Update bell signs with the new name
                 Location bellLoc = village.getBellLocation();
                 if (bellLoc != null && bellLoc.getWorld() != null) {
-                    signManager.placeSignsAroundBell(bellLoc.getBlock(), village.getId(), name.trim());
+                    signManager.placeSignsAroundBell(bellLoc.getBlock(), village.getId(), finalName);
                 }
-                
-                logger.info(LogCategory.COMMAND, "Village " + village.getId() + " named to '" + name.trim() + "' by " + player.getName());
+
+                logger.info(LogCategory.COMMAND, "Village " + village.getId() + " named to '" + finalName + "' by " + player.getName());
                 player.sendMessage(Component.text("Village named: ", NamedTextColor.GREEN)
-                    .append(Component.text(name.trim(), NamedTextColor.YELLOW)));
+                    .append(Component.text(finalName, NamedTextColor.YELLOW)));
             });
         }, () -> {
             logger.warning(LogCategory.COMMAND, "Village name command failed: no village found near " + player.getName() + " at " + player.getLocation());

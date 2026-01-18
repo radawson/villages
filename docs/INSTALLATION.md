@@ -95,33 +95,43 @@ The plugin automatically generates names for villages using adjective+noun patte
 ```yaml
 # Biome-specific word lists
 plains:
-  adjectives: [Green, Golden, Peaceful, Quiet, Bright]
-  nouns: [Meadow, Valley, Hill, Field, Grove]
+  adjectives: [Green, Golden, Peaceful, Quiet, Bright, Verdant, Breezy, Rolling, Sunny, Gentle, Open, Lush]
+  nouns: [Meadow, Valley, Hill, Field, Grove, Pasture, Prairie, Orchard, Ridge, Hollow, Crossing, Brook]
 
 desert:
-  adjectives: [Sandy, Golden, Sunlit, Arid, Warm]
-  nouns: [Oasis, Dune, Mesa, Well, Shade]
+  adjectives: [Sandy, Golden, Sunlit, Arid, Warm, Blazing, Dry, Dusty, Scorched, Ember, Mirage, Windy]
+  nouns: [Oasis, Dune, Mesa, Well, Shade, Caravan, Canyon, Spire, Wadi, Basin, Outcrop, Mirage]
 
 # ... other biomes ...
 
 # Terrain feature modifiers (used as prefixes or suffixes)
 coastal:
-  adjectives: [Port, Seaside, Coastal, Harbor, Bay]
-  nouns: [Harbor, Port, Cove, Bay, Shore]
+  prefixes: [Port, Seaside, Coastal, Harbor, Bay, Tide, Salt, Ocean, Breaker, Gull, Wave, Anchor]
+  suffixes: [Harbor, Port, Cove, Bay, Shore, Reef, Strand, Point, Quay, Inlet, Sound, Breakwater]
+
+river:
+  prefixes: [River, Riverside, Flowing, Brook, Bend, Delta, Ford, Current, Rapids, Willow, Channel, Stream]
+  suffixes: [Ford, Crossing, Bridge, Bend, Reach, Flow, Run, Bank, Channel, Rapids, Shoal, Delta]
+
+beach:
+  prefixes: [Beach, Sandy, Shoreline, Dune, Sunlit, Shell, Drift, Tide, Sun, Surf, Palm, Coral]
+  suffixes: [Beach, Shore, Dune, Strand, Sands, Surf, Lagoon, Spit, Bight, Bay, Reef, Point]
 ```
 
 **Naming Patterns:**
-- **Non-coastal villages**: `[biome adjective] [biome noun]` (e.g., "Green Meadow", "Pine Rest")
-- **Coastal villages**: Randomly uses either:
-  - Prefix: `[coastal adjective] [biome adjective] [biome noun]` (e.g., "Port Pine Rest")
-  - Suffix: `[biome adjective] [biome noun] [coastal noun]` (e.g., "Pine Rest Harbor")
+- **Base**: `[biome adjective] [biome noun]` (e.g., "Green Meadow", "Pine Rest")
+- **Prefix mode**: `[modifier prefix] [biome adjective] [biome noun]` (e.g., "Port Pine Rest")
+- **Suffix mode**: `[biome adjective] [biome noun] [modifier suffix]` (e.g., "Pine Rest Harbor")
+- **Both (rare)**: `[modifier prefix] [biome adjective] [biome noun] [modifier suffix]` (2% chance)
 
 The plugin will automatically:
 - Generate names for new villages based on their biome type
-- Detect coastal villages and add coastal modifiers (prefix or suffix)
-- Always preserve biome identity in names (coastal words are modifiers, not replacements)
+- Detect coastal, river, and beach villages and add modifiers (prefix or suffix)
+- Always preserve biome identity in names (modifiers wrap the base name)
 - Never override player-assigned names
-- Generate names during periodic recheck for unnamed villages
+- Generate names during periodic recheck for unnamed villages or UUID-named villages
+
+If you want to regenerate a name manually, run `/village name` with a blank name.
 
 ### 5. Set Permissions
 

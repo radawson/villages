@@ -62,6 +62,7 @@ When a village is detected or created:
 2. If boundaries are enabled and the village has a calculated boundary, a shape marker is created
 3. Markers are automatically updated when:
    - Village name changes
+   - Village name is regenerated via `/village name` with a blank name
    - Village boundary is recalculated
    - Village is deleted
 

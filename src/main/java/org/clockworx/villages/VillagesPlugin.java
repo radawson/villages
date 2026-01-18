@@ -353,6 +353,15 @@ public class VillagesPlugin extends JavaPlugin {
     public VillageManager getVillageManager() {
         return villageManager;
     }
+
+    /**
+     * Gets the VillageNameGenerator instance.
+     *
+     * @return The VillageNameGenerator
+     */
+    public VillageNameGenerator getNameGenerator() {
+        return nameGenerator;
+    }
     
     /**
      * Gets the SignManager instance.

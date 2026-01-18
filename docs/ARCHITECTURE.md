@@ -228,25 +228,26 @@ Located in `org.clockworx.villages.signs` and `org.clockworx.villages.managers`:
 Located in `org.clockworx.villages.naming`:
 
 - **VillageNameGenerator** - Generates automatic names using adjective+noun patterns
-- **TerrainFeatureDetector** - Detects terrain features (coastal, rivers, mountains, forests)
+- **TerrainFeatureDetector** - Detects terrain features (coastal, rivers, beaches)
 - **Biome-Specific Naming** - Names are generated based on village biome type
 - **Configurable Word Lists** - All naming words stored in `names.yml` for customization
-- **Terrain Feature Modifiers** - Coastal villages use modifiers as prefixes or suffixes
-- **Automatic Naming Triggers** - Villages are named on creation and during periodic recheck
-- **Never Overrides Player Names** - Only unnamed villages receive automatic names
+- **Terrain Feature Modifiers** - Coastal, river, and beach modifiers use prefixes/suffixes around the base name
+- **Automatic Naming Triggers** - Villages are named on creation and during periodic recheck (including UUID-named villages)
+- **Never Overrides Player Names** - Automatic naming skips user-provided names unless regeneration is requested
 
 **Naming Patterns:**
-- **Non-coastal**: `[biome adjective] + [biome noun]` (e.g., "Green Meadow", "Pine Rest")
-- **Coastal (prefix mode)**: `[coastal adjective] + [biome adjective] + [biome noun]` (e.g., "Port Pine Rest", "Seaside Golden Meadow")
-- **Coastal (suffix mode)**: `[biome adjective] + [biome noun] + [coastal noun]` (e.g., "Pine Rest Harbor", "Golden Meadow Cove")
-- Randomly chooses prefix or suffix mode for coastal villages (50/50 chance)
+- **Base**: `[biome adjective] + [biome noun]` (e.g., "Green Meadow", "Pine Rest")
+- **Prefix mode**: `[modifier prefix] + [biome adjective] + [biome noun]` (e.g., "Port Pine Rest", "River Golden Meadow")
+- **Suffix mode**: `[biome adjective] + [biome noun] + [modifier suffix]` (e.g., "Pine Rest Harbor", "Golden Meadow Crossing")
+- **Both (rare)**: `[modifier prefix] + [biome adjective] + [biome noun] + [modifier suffix]` (2% chance)
 
 Features:
 - Always uses biome words for base name (never replaces entirely)
-- Coastal modifiers are added to biome names, not replacements
+- Terrain modifiers add prefix/suffix words around the base pair
+- Avoids duplicate words across prefix/adjective/noun/suffix (prevents "Bay Bay")
 - Biome-specific word lists (Plains, Desert, Savanna, Taiga, Snowy Plains)
 - Coastal detection using boundary scanning and radius checking
-- Future support for river, mountain, and forest detection
+- River and beach detection using biome sampling around bell/boundary
 - Word lists loaded from `names.yml` on startup and can be reloaded
 
 ### Commands
@@ -305,7 +306,7 @@ Periodic Recheck (every recalculate-interval ticks):
     → Process bells without UUIDs (triggers merging)
     → Update signs for all bells found
     → Recalculate boundaries for existing villages (if bell chunk loaded)
-    → Generate names for unnamed villages (if name generator available)
+    → Generate names for unnamed villages or UUID-named villages (if name generator available)
 ```
 
 ### Command Flow

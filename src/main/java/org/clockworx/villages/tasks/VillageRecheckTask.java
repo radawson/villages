@@ -123,9 +123,14 @@ public class VillageRecheckTask extends BukkitRunnable {
                             villageManager.recalculateBoundary(village);
                             villagesRecalculated++;
                             
-                            // Generate name for unnamed villages
-                            if (nameGenerator != null && !village.hasName()) {
-                                String generatedName = nameGenerator.generateName(village);
+                            // Generate name for unnamed villages or those still using UUIDs as names
+                            boolean needsGeneratedName = !village.hasName();
+                            if (village.hasName() && village.getName() != null) {
+                                needsGeneratedName = village.getId().toString().equals(village.getName());
+                            }
+
+                            if (nameGenerator != null && needsGeneratedName) {
+                                String generatedName = nameGenerator.generateName(village, true);
                                 if (generatedName != null) {
                                     villageManager.setVillageName(village, generatedName);
                                     villagesNamed++;

@@ -197,7 +197,7 @@ new CommandAPICommand("village")
 ## Best Practices
 
 1. **Keep command logic separate**: Put command handlers in separate methods (like `handleNameCommand`)
-2. **Validate inputs**: Always validate user input before processing
+2. **Validate inputs**: Always validate user input before processing (blank names can trigger regeneration)
 3. **Provide feedback**: Send clear messages to players about success/failure
 4. **Use appropriate argument types**: Choose the right argument type for your use case
 5. **Set permissions**: Always set appropriate permissions for commands
@@ -214,7 +214,7 @@ For more detailed information, see the official CommandAPI documentation:
 As of version 0.2.1, the plugin includes:
 
 ### Basic Commands
-- `/village name <name>` - Name a village
+- `/village name <name>` - Name a village (blank regenerates a new name)
 - `/village info` - Show plugin and village info
 
 ### Border Commands

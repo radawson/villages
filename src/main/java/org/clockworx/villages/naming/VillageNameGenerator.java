@@ -13,8 +13,10 @@ import java.util.*;
 
 /**
  * Generates automatic names for villages using adjective+noun patterns.
- * 
- * Names are biome-specific and can be enhanced with terrain features.
+ *
+ * Names are biome-specific and can be enhanced with terrain feature modifiers.
+ * Modifiers are applied as prefixes/suffixes around the base adjective+noun pair
+ * to preserve the biome identity, and duplicate words are avoided when possible.
  * All word lists are loaded from names.yml configuration file.
  * 
  * @author Clockworx
@@ -28,7 +30,9 @@ public class VillageNameGenerator {
     
     /** Word lists loaded from names.yml */
     private Map<String, WordList> biomeWordLists;
-    private WordList coastalWordList;
+    private ModifierList coastalModifierList;
+    private ModifierList riverModifierList;
+    private ModifierList beachModifierList;
     
     /** Set of used names to avoid duplicates (optional) */
     private final Set<String> usedNames;
@@ -76,12 +80,26 @@ public class VillageNameGenerator {
             }
         }
         
-        // Load coastal word list
-        coastalWordList = loadWordList(config, "coastal");
-        if (coastalWordList != null) {
-            logger.debug(LogCategory.GENERAL, "Loaded coastal word list with " + 
-                coastalWordList.adjectives.size() + " adjectives and " + 
-                coastalWordList.nouns.size() + " nouns");
+        // Load terrain modifier word lists (prefixes/suffixes)
+        coastalModifierList = loadModifierList(config, "coastal");
+        if (coastalModifierList != null) {
+            logger.debug(LogCategory.GENERAL, "Loaded coastal modifier list with " +
+                coastalModifierList.prefixes.size() + " prefixes and " +
+                coastalModifierList.suffixes.size() + " suffixes");
+        }
+
+        riverModifierList = loadModifierList(config, "river");
+        if (riverModifierList != null) {
+            logger.debug(LogCategory.GENERAL, "Loaded river modifier list with " +
+                riverModifierList.prefixes.size() + " prefixes and " +
+                riverModifierList.suffixes.size() + " suffixes");
+        }
+
+        beachModifierList = loadModifierList(config, "beach");
+        if (beachModifierList != null) {
+            logger.debug(LogCategory.GENERAL, "Loaded beach modifier list with " +
+                beachModifierList.prefixes.size() + " prefixes and " +
+                beachModifierList.suffixes.size() + " suffixes");
         }
         
         logger.info(LogCategory.GENERAL, "Village name generator initialized with " + 
@@ -110,20 +128,53 @@ public class VillageNameGenerator {
         
         return new WordList(new ArrayList<>(adjectives), new ArrayList<>(nouns));
     }
+
+    /**
+     * Loads a modifier list from configuration.
+     *
+     * @param config The configuration
+     * @param section The section name (terrain feature)
+     * @return The modifier list, or null if not found
+     */
+    private ModifierList loadModifierList(FileConfiguration config, String section) {
+        if (!config.contains(section)) {
+            return null;
+        }
+
+        List<String> prefixes = config.getStringList(section + ".prefixes");
+        List<String> suffixes = config.getStringList(section + ".suffixes");
+
+        if (prefixes.isEmpty() || suffixes.isEmpty()) {
+            logger.warning(LogCategory.GENERAL, "Modifier list for " + section + " is empty or missing prefixes/suffixes");
+            return null;
+        }
+
+        return new ModifierList(new ArrayList<>(prefixes), new ArrayList<>(suffixes));
+    }
     
     /**
      * Generates a name for a village.
-     * 
+     *
      * @param village The village to name
      * @return The generated name, or null if generation fails
      */
     public String generateName(Village village) {
+        return generateName(village, false);
+    }
+
+    /**
+     * Generates a name for a village, optionally allowing renames.
+     *
+     * @param village The village to name
+     * @param allowRename True to regenerate even if the village already has a name
+     * @return The generated name, or null if generation fails
+     */
+    public String generateName(Village village, boolean allowRename) {
         if (village == null) {
             return null;
         }
-        
-        // Check if village already has a name (never override)
-        if (village.hasName()) {
+
+        if (village.hasName() && !allowRename) {
             logger.debug(LogCategory.GENERAL, "Village " + village.getId() + " already has a name, skipping generation");
             return null;
         }
@@ -141,6 +192,8 @@ public class VillageNameGenerator {
         
         // Check for terrain features
         boolean isCoastal = terrainDetector.isCoastal(village);
+        boolean isRiver = terrainDetector.isRiver(village);
+        boolean isBeach = terrainDetector.isBeach(village);
         
         // Always use biome word list for base name
         WordList biomeWordList = biomeWordLists.get(biomeKey);
@@ -164,42 +217,116 @@ public class VillageNameGenerator {
         while (name == null || (usedNames.contains(name) && attempts < maxAttempts)) {
             // Always generate base name from biome words
             String biomeAdjective = biomeWordList.adjectives.get(random.nextInt(biomeWordList.adjectives.size()));
-            String biomeNoun = biomeWordList.nouns.get(random.nextInt(biomeWordList.nouns.size()));
-            
-            // Apply coastal modifiers if applicable
-            if (isCoastal && coastalWordList != null && 
-                !coastalWordList.adjectives.isEmpty() && !coastalWordList.nouns.isEmpty()) {
-                // Randomly choose prefix (50%) or suffix (50%) mode
-                boolean usePrefix = random.nextBoolean();
-                
-                if (usePrefix) {
-                    // Prefix mode: [coastal adjective] + [biome adjective] + [biome noun]
-                    // e.g., "Port Pine Rest"
-                    String coastalAdjective = coastalWordList.adjectives.get(random.nextInt(coastalWordList.adjectives.size()));
-                    name = coastalAdjective + " " + biomeAdjective + " " + biomeNoun;
-                    logger.debug(LogCategory.GENERAL, "Generated coastal prefix name for village " + village.getId());
-                } else {
-                    // Suffix mode: [biome adjective] + [biome noun] + [coastal noun]
-                    // e.g., "Pine Rest Harbor"
-                    String coastalNoun = coastalWordList.nouns.get(random.nextInt(coastalWordList.nouns.size()));
-                    name = biomeAdjective + " " + biomeNoun + " " + coastalNoun;
-                    logger.debug(LogCategory.GENERAL, "Generated coastal suffix name for village " + village.getId());
-                }
-            } else {
-                // Non-coastal: just [biome adjective] + [biome noun]
-                name = biomeAdjective + " " + biomeNoun;
+            String biomeNoun = pickDistinctWord(biomeWordList.nouns, Set.of(biomeAdjective), random);
+            if (biomeNoun == null) {
+                biomeNoun = biomeWordList.nouns.get(random.nextInt(biomeWordList.nouns.size()));
             }
-            
+
+            // Choose one terrain modifier list when multiple features apply
+            ModifierList modifierList = selectModifierList(isCoastal, isRiver, isBeach, random);
+
+            // Use modifiers as prefix/suffix around the base adjective+noun.
+            name = buildNameWithModifiers(biomeAdjective, biomeNoun, modifierList, random);
             attempts++;
         }
         
         // Add to used names (optional - can be cleared periodically)
         usedNames.add(name);
         
-        logger.debug(LogCategory.GENERAL, "Generated name '" + name + "' for village " + village.getId() + 
-            " (biome: " + biomeKey + ", coastal: " + isCoastal + ")");
+        logger.debug(LogCategory.GENERAL, "Generated name '" + name + "' for village " + village.getId() +
+            " (biome: " + biomeKey + ", coastal: " + isCoastal + ", river: " + isRiver + ", beach: " + isBeach + ")");
         
         return name;
+    }
+
+    /**
+     * Chooses a single modifier list when multiple terrain features apply.
+     * This keeps the naming consistent and avoids stacking multiple modifiers at once.
+     */
+    private ModifierList selectModifierList(boolean isCoastal, boolean isRiver, boolean isBeach, Random random) {
+        List<ModifierList> availableLists = new ArrayList<>();
+        if (isCoastal && coastalModifierList != null) {
+            availableLists.add(coastalModifierList);
+        }
+        if (isRiver && riverModifierList != null) {
+            availableLists.add(riverModifierList);
+        }
+        if (isBeach && beachModifierList != null) {
+            availableLists.add(beachModifierList);
+        }
+
+        if (availableLists.isEmpty()) {
+            return null;
+        }
+
+        return availableLists.get(random.nextInt(availableLists.size()));
+    }
+
+    /**
+     * Builds a name that wraps a base adjective+noun with optional prefix/suffix modifiers.
+     * The base adjective+noun is never replaced, and duplicate words are avoided when possible.
+     */
+    private String buildNameWithModifiers(String baseAdjective, String baseNoun, ModifierList modifierList, Random random) {
+        if (modifierList == null) {
+            return baseAdjective + " " + baseNoun;
+        }
+
+        boolean useBoth = random.nextInt(100) < 2; // 2% chance to use both
+        boolean usePrefix = useBoth || random.nextBoolean();
+        boolean useSuffix = useBoth || !usePrefix;
+
+        Set<String> usedWords = new HashSet<>();
+        usedWords.add(baseAdjective);
+        usedWords.add(baseNoun);
+
+        String prefix = null;
+        String suffix = null;
+
+        if (usePrefix) {
+            prefix = pickDistinctWord(modifierList.prefixes, usedWords, random);
+            if (prefix != null) {
+                usedWords.add(prefix);
+            }
+        }
+
+        if (useSuffix) {
+            suffix = pickDistinctWord(modifierList.suffixes, usedWords, random);
+            if (suffix != null) {
+                usedWords.add(suffix);
+            }
+        }
+
+        if (prefix != null && suffix != null) {
+            return prefix + " " + baseAdjective + " " + baseNoun + " " + suffix;
+        }
+        if (prefix != null) {
+            return prefix + " " + baseAdjective + " " + baseNoun;
+        }
+        if (suffix != null) {
+            return baseAdjective + " " + baseNoun + " " + suffix;
+        }
+
+        return baseAdjective + " " + baseNoun;
+    }
+
+    /**
+     * Picks a word that does not overlap with existing words.
+     * Returns null if no distinct word can be found after a few attempts.
+     */
+    private String pickDistinctWord(List<String> options, Set<String> usedWords, Random random) {
+        if (options == null || options.isEmpty()) {
+            return null;
+        }
+
+        int maxAttempts = Math.min(10, options.size() * 2);
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            String candidate = options.get(random.nextInt(options.size()));
+            if (!usedWords.contains(candidate)) {
+                return candidate;
+            }
+        }
+
+        return null;
     }
     
     /**
@@ -249,6 +376,19 @@ public class VillageNameGenerator {
         WordList(List<String> adjectives, List<String> nouns) {
             this.adjectives = adjectives;
             this.nouns = nouns;
+        }
+    }
+
+    /**
+     * Helper class for terrain feature modifiers.
+     */
+    private static class ModifierList {
+        final List<String> prefixes;
+        final List<String> suffixes;
+
+        ModifierList(List<String> prefixes, List<String> suffixes) {
+            this.prefixes = prefixes;
+            this.suffixes = suffixes;
         }
     }
 }

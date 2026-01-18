@@ -114,7 +114,7 @@ Non-fatal errors, validation failures, missing data, fallback operations. Always
 
 **Example:**
 ```
-[WARNING] [14:23:45] [Command] Village name command failed: empty name provided by PlayerName
+[WARNING] [14:23:45] [Command] Village name command failed: name generator not available for PlayerName
 [WARNING] [14:23:45] [Storage] Invalid UUID in council list: invalid-uuid-string
 ```
 

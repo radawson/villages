@@ -5,6 +5,20 @@ All notable changes to the Villages plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Terrain modifiers expanded** - Added river and beach modifiers alongside coastal naming
+- **Blank-name regeneration** - `/village name` with a blank name regenerates the village name
+
+### Changed
+- **Modifier application** - Prefix/suffix modifiers wrap the base adjective+noun pair (2% chance to use both)
+- **Duplicate word protection** - Avoids repeated prefix/suffix words in generated names
+- **Word list expansion** - Biome and modifier lists expanded to 12 entries each
+- **Recheck behavior** - UUID-named villages are renamed during periodic recheck
+
+---
+
 ## [0.2.5] - Automatic Village Naming Engine
 
 ### Added
@@ -23,19 +37,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### New Classes
 - `org.clockworx.villages.naming.VillageNameGenerator` - Generates names using configurable word lists
-- `org.clockworx.villages.naming.TerrainFeatureDetector` - Detects terrain features (coastal, rivers, mountains, forests)
+- `org.clockworx.villages.naming.TerrainFeatureDetector` - Detects terrain features (coastal, rivers, beaches)
 
 #### Terrain Feature Detection
 - **Coastal detection** - Uses boundary scanning and radius checking to identify villages near water
-- **Future support** - Framework in place for river, mountain, and forest detection
+- **Future support** - Framework in place for mountain and forest detection
 
 ### Changed
 - `VillageManager` now automatically generates names for new villages if unnamed
 - `VillageRecheckTask` now generates names for unnamed villages during periodic recheck
 - `VillagesPlugin` initializes naming system on startup
 - **Naming pattern** - Coastal modifiers now use prefix/suffix pattern instead of replacing biome words
-  - Prefix mode: `[coastal adjective] + [biome adjective] + [biome noun]` (e.g., "Port Pine Rest")
-  - Suffix mode: `[biome adjective] + [biome noun] + [coastal noun]` (e.g., "Pine Rest Harbor")
+  - Prefix mode: `[coastal prefix] + [biome adjective] + [biome noun]` (e.g., "Port Pine Rest")
+  - Suffix mode: `[biome adjective] + [biome noun] + [coastal suffix]` (e.g., "Pine Rest Harbor")
   - Randomly chooses prefix or suffix mode for coastal villages (50/50 chance)
 
 ### Fixed
