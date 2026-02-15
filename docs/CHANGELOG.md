@@ -10,12 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Terrain modifiers expanded** - Added river and beach modifiers alongside coastal naming
 - **Blank-name regeneration** - `/village name` with a blank name regenerates the village name
+- **BellAttachmentSignPlacementStrategy** - Single sign placement strategy driven by bell attachment (wall, floor, ceiling)
 
 ### Changed
 - **Modifier application** - Prefix/suffix modifiers wrap the base adjective+noun pair (2% chance to use both)
 - **Duplicate word protection** - Avoids repeated prefix/suffix words in generated names
 - **Word list expansion** - Biome and modifier lists expanded to 12 entries each
 - **Recheck behavior** - UUID-named villages are renamed during periodic recheck
+- **Sign placement at bells** - Replaced biome-specific strategies with bell-attachment-based placement: wall bells get signs above/below when the support has solid above/below, or on the support block's facets; ceiling and floor bells get signs on the four horizontal facets of the support block (avoids stacked signs, floating signs, and signs in front of doors)
+
+### Removed
+- **Biome-specific sign strategies** - PlainsSignPlacementStrategy, DesertSignPlacementStrategy, SavannaSignPlacementStrategy, TaigaSignPlacementStrategy, SnowyPlainsSignPlacementStrategy (replaced by BellAttachmentSignPlacementStrategy)
 
 ---
 
@@ -155,14 +160,11 @@ bluemap:
 ### Technical Details
 
 #### New Classes
-- `org.clockworx.villages.signs.BiomeSignPlacementStrategy` - Interface for biome-specific sign placement
-- `org.clockworx.villages.signs.VillageBiomeDetector` - Biome detection utility
-- `org.clockworx.villages.signs.PlainsSignPlacementStrategy` - Plains biome strategy
-- `org.clockworx.villages.signs.DesertSignPlacementStrategy` - Desert biome strategy
-- `org.clockworx.villages.signs.SavannaSignPlacementStrategy` - Savanna biome strategy
-- `org.clockworx.villages.signs.TaigaSignPlacementStrategy` - Taiga biome strategy
-- `org.clockworx.villages.signs.SnowyPlainsSignPlacementStrategy` - Snowy Plains biome strategy
+- `org.clockworx.villages.signs.BiomeSignPlacementStrategy` - Interface for sign placement strategies
+- `org.clockworx.villages.signs.VillageBiomeDetector` - Biome detection utility (used by naming)
 - `org.clockworx.villages.tasks.VillageRecheckTask` - Periodic village recheck task
+
+*Note: As of a later refactor, sign placement uses a single `BellAttachmentSignPlacementStrategy` driven by bell attachment (wall/floor/ceiling) instead of the biome-specific strategy classes that were added in this release.*
 
 #### Bell Merging Flow
 1. When a bell is detected, check if it has an existing UUID in PDC

@@ -203,25 +203,23 @@ Located in `org.clockworx.villages.signs` and `org.clockworx.villages.managers`:
   - **Duplicate detection** - Searches for existing signs within a 3-block radius
   - **Content verification** - Reads sign content to identify village signs
   - **Automatic cleanup** - Removes duplicate signs that don't belong to the current village
-  - **Biome-aware placement** - Uses biome-specific strategies for aesthetic placement
+  - **Bell-attachment placement** - Uses a single strategy driven by how the bell is placed (wall, floor, ceiling)
 - **WelcomeSignPlacer** - Places/updates welcome signs at entrances
 - Configurable text with %village_name% placeholder
 - Non-destructive placement
-- **BiomeSignPlacementStrategy** - Interface for biome-specific sign placement strategies
-- **VillageBiomeDetector** - Detects village biome type for sign placement
-- **Biome-Specific Strategies** - Custom placement for each biome:
-  - PlainsSignPlacementStrategy - Standard placement
-  - DesertSignPlacementStrategy - Sandstone structure-aware
-  - SavannaSignPlacementStrategy - Acacia structure-aware
-  - TaigaSignPlacementStrategy - Spruce structure-aware
-  - SnowyPlainsSignPlacementStrategy - Snow layer-aware
+- **BiomeSignPlacementStrategy** - Interface for sign placement strategies (block location and facing)
+- **BellAttachmentSignPlacementStrategy** - Single implementation used for all bells:
+  - **Wall-mounted bells** - Places up to two signs above or below the bell on the same support pillar when the support has solid above/below; otherwise places signs on the horizontal facets of the support block
+  - **Ceiling bells** - Places wall signs on the four horizontal facets of the block the bell hangs from
+  - **Floor bells** - Places wall signs on the four horizontal facets of the block the bell stands on
+- **VillageBiomeDetector** - Detects village biome type (used by naming system, not sign placement)
 
 **Sign Placement Flow:**
-1. Calculate sign positions using biome-specific strategy
-2. Search for existing signs within 3-block radius
-3. Remove duplicate signs that don't match current village
-4. Update existing signs that do match
-5. Place new signs only if no matching sign exists
+1. Read bell block data (attachment: FLOOR, CEILING, SINGLE_WALL, DOUBLE_WALL) and compute support block
+2. Calculate sign positions from attachment (above/below bell or on support block facets)
+3. Search for existing signs within 3-block radius
+4. Remove duplicate signs that don't match current village
+5. Update existing signs that do match; place new signs where position is clear
 
 ### Naming System
 
@@ -296,7 +294,7 @@ Chunk Loads → ChunkLoadEvent → Scan for Bells → For each Bell:
     → Calculate Boundary (NMS POI scan)
     → Generate Name (if unnamed, using biome and terrain features)
     → Detect Entrances
-    → Place Signs (biome-aware placement)
+    → Place Signs (bell-attachment placement)
     → Create Region (if configured)
     → Place Welcome Signs (if configured)
     → Save to Storage
