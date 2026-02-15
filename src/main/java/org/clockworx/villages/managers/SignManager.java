@@ -9,73 +9,42 @@ import org.bukkit.block.Sign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
 import org.clockworx.villages.VillagesPlugin;
-import org.clockworx.villages.signs.*;
+import org.clockworx.villages.signs.BellAttachmentSignPlacementStrategy;
+import org.clockworx.villages.signs.BiomeSignPlacementStrategy;
 import org.clockworx.villages.util.LogCategory;
 import org.clockworx.villages.util.PluginLogger;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
  * Manages sign placement around village bells.
- * 
- * This class handles placing signs on all four cardinal directions (North, South, East, West)
- * around a bell block, displaying the village UUID.
- * 
+ *
+ * Uses a single bell-attachment-based strategy: signs are placed above/below
+ * wall-mounted bells when the support has solid above/below, or on the facets
+ * of the support block for ceiling/floor bells (or as fallback for walls).
+ *
  * Key concepts:
  * - BlockFace: Represents directions (NORTH, SOUTH, EAST, WEST)
  * - Sign blocks: Special blocks that can display text on multiple lines
  * - BlockState: Used to modify block data (like sign text) before applying changes
  */
 public class SignManager {
-    
+
     private final VillagesPlugin plugin;
     private final PluginLogger logger;
-    
-    // Biome-specific sign placement strategies
-    private final Map<VillageBiomeDetector.VillageBiomeType, BiomeSignPlacementStrategy> strategies;
-    
+
+    private final BiomeSignPlacementStrategy signPlacementStrategy = new BellAttachmentSignPlacementStrategy();
+
     /**
      * Creates a new SignManager.
-     * 
+     *
      * @param plugin The plugin instance
      */
     public SignManager(VillagesPlugin plugin) {
         this.plugin = plugin;
         this.logger = plugin.getPluginLogger();
-        this.strategies = initializeStrategies();
-    }
-    
-    /**
-     * Initializes biome-specific sign placement strategies.
-     */
-    private Map<VillageBiomeDetector.VillageBiomeType, BiomeSignPlacementStrategy> initializeStrategies() {
-        Map<VillageBiomeDetector.VillageBiomeType, BiomeSignPlacementStrategy> map = new HashMap<>();
-        map.put(VillageBiomeDetector.VillageBiomeType.PLAINS, new PlainsSignPlacementStrategy());
-        map.put(VillageBiomeDetector.VillageBiomeType.DESERT, new DesertSignPlacementStrategy());
-        map.put(VillageBiomeDetector.VillageBiomeType.SAVANNA, new SavannaSignPlacementStrategy());
-        map.put(VillageBiomeDetector.VillageBiomeType.TAIGA, new TaigaSignPlacementStrategy());
-        map.put(VillageBiomeDetector.VillageBiomeType.SNOWY_PLAINS, new SnowyPlainsSignPlacementStrategy());
-        // Default fallback for unknown biomes
-        map.put(VillageBiomeDetector.VillageBiomeType.UNKNOWN, new PlainsSignPlacementStrategy());
-        return map;
-    }
-    
-    /**
-     * Gets the appropriate sign placement strategy for a bell block's biome.
-     */
-    private BiomeSignPlacementStrategy getStrategy(Block bellBlock) {
-        VillageBiomeDetector.VillageBiomeType biomeType = VillageBiomeDetector.detectBiomeType(bellBlock);
-        BiomeSignPlacementStrategy strategy = strategies.get(biomeType);
-        if (strategy == null) {
-            logger.debug(LogCategory.GENERAL, "No strategy found for biome type " + biomeType + ", using default");
-            strategy = strategies.get(VillageBiomeDetector.VillageBiomeType.PLAINS);
-        }
-        logger.debug(LogCategory.GENERAL, "Using " + biomeType + " sign placement strategy for bell at " + bellBlock.getLocation());
-        return strategy;
     }
     
     /**
@@ -102,8 +71,8 @@ public class SignManager {
     /**
      * Places or updates signs on all four sides of a bell block with the village name or UUID.
      * 
-     * This method uses biome-specific placement strategies to ensure signs are placed
-     * aesthetically based on the village's biome type.
+     * This method uses bell-attachment-based placement (wall/floor/ceiling) so signs
+     * are placed above/below the bell or on the support block's facets.
      * 
      * @param bellBlock The bell block to place signs around
      * @param villageUuid The UUID to display on the signs (used as fallback if name is null)
@@ -113,32 +82,29 @@ public class SignManager {
         logger.debug(LogCategory.GENERAL, "placeSignsAroundBell called for village " + villageUuid + 
             " at bell " + bellBlock.getLocation() + " with name: " + villageName);
         
-        // Get biome-specific strategy
-        BiomeSignPlacementStrategy strategy = getStrategy(bellBlock);
-        
-        // Calculate sign positions using the strategy
-        java.util.List<BiomeSignPlacementStrategy.SignPosition> positions = strategy.calculateSignPositions(bellBlock);
-        
+        // Calculate sign positions from bell attachment (wall/floor/ceiling)
+        List<BiomeSignPlacementStrategy.SignPosition> positions = signPlacementStrategy.calculateSignPositions(bellBlock);
+
         // Place or update signs at calculated positions
         for (BiomeSignPlacementStrategy.SignPosition position : positions) {
             Block signBlock = position.getBlock();
             BlockFace facing = position.getFacing();
-            
+
             // Remove duplicate signs in the area before placing/updating
             removeDuplicateSigns(signBlock, villageUuid, villageName);
-            
+
             // Check if a sign already exists at this location
             if (isSign(signBlock)) {
                 // Update the existing sign
                 updateSign(signBlock, facing, villageUuid, villageName);
-                logger.debug(LogCategory.GENERAL, "Updated existing sign at " + signBlock.getLocation() + 
-                    " facing " + facing + " with " + 
+                logger.debug(LogCategory.GENERAL, "Updated existing sign at " + signBlock.getLocation() +
+                    " facing " + facing + " with " +
                     (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
-            } else if (strategy.canPlaceSign(signBlock)) {
+            } else if (signPlacementStrategy.canPlaceSign(signBlock)) {
                 // Place a new wall sign
                 placeWallSign(signBlock, facing, villageUuid, villageName);
-                logger.debug(LogCategory.GENERAL, "Placed sign at " + signBlock.getLocation() + 
-                    " facing " + facing + " with " + 
+                logger.debug(LogCategory.GENERAL, "Placed sign at " + signBlock.getLocation() +
+                    " facing " + facing + " with " +
                     (villageName != null ? "name: " + villageName : "UUID: " + villageUuid));
             } else {
                 logger.debug(LogCategory.GENERAL, "Cannot place sign at " + signBlock.getLocation() + 
