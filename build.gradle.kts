@@ -1,7 +1,7 @@
 plugins {
     id("java")
     id("com.gradleup.shadow") version "9.0.0-beta12"
-    id("io.papermc.paperweight.userdev") version "2.0.0-beta.18"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.21"
 }
 
 group = "org.clockworx.villages"
@@ -29,7 +29,7 @@ repositories {
 }
 
 dependencies {
-  compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+  compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
   
   // Use CommandAPI 11.1.0 from local file (downloaded from Hangar)
   // Download URL: https://hangarcdn.papermc.io/plugins/Skepter/CommandAPI/versions/11.1.0/PAPER/CommandAPI-11.1.0-Paper.jar
@@ -55,11 +55,11 @@ dependencies {
   // No compile-time dependency needed - the integration will work if BlueMap is installed
   // and gracefully fail if it's not available
   
-  paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
+  paperweight.paperDevBundle("26.1.2.build.74-stable")
 }
 
 java {
-  toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+  toolchain.languageVersion.set(JavaLanguageVersion.of(25))
 }
 
 tasks {

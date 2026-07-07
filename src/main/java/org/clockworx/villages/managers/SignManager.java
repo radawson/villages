@@ -386,6 +386,15 @@ public class SignManager {
      * @param villageName The village name to match (may be null)
      * @return true if the sign belongs to this village
      */
+    private boolean looksLikeVillageSign(Block signBlock) {
+        BlockState state = signBlock.getState();
+        if (!(state instanceof Sign sign)) {
+            return false;
+        }
+        String firstLine = getSignLineText(sign.getSide(Side.FRONT), 0);
+        return firstLine != null && (firstLine.contains("Village") || firstLine.contains("UUID"));
+    }
+
     private boolean isVillageSign(Block signBlock, UUID villageUuid, String villageName) {
         BlockState state = signBlock.getState();
         if (!(state instanceof Sign sign)) {
@@ -458,10 +467,12 @@ public class SignManager {
                 continue;
             }
             
-            // Check if this sign belongs to our village
-            if (!isVillageSign(signBlock, villageUuid, villageName)) {
-                // This sign doesn't belong to our village - remove it
-                logger.debug(LogCategory.GENERAL, "Removing duplicate sign at " + signBlock.getLocation() + 
+            // Only remove signs that are clearly *village* signs belonging to a
+            // DIFFERENT village. Player-placed / decorative signs (no village header)
+            // must be left untouched - previously any non-matching sign in a 7x7x7
+            // area around the bell was deleted, destroying player builds.
+            if (looksLikeVillageSign(signBlock) && !isVillageSign(signBlock, villageUuid, villageName)) {
+                logger.debug(LogCategory.GENERAL, "Removing stale village sign at " + signBlock.getLocation() +
                     " that doesn't belong to village " + villageUuid);
                 signBlock.setType(Material.AIR);
             }

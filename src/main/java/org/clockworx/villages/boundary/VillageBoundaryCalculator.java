@@ -296,8 +296,10 @@ public class VillageBoundaryCalculator {
         var key = holder.unwrapKey();
         if (key.isEmpty()) return false;
         
-        String typeName = key.get().registry().getPath();
-        
+        // NOTE: ResourceKey.registry() returns the *registry* id (point_of_interest_type);
+        // the actual POI id (meeting/home/farmer/...) is ResourceKey.identifier().
+        String typeName = key.get().identifier().getPath();
+
         // Village POI types
         return typeName.equals("meeting") ||           // Bell
                typeName.equals("home") ||              // Bed
@@ -323,7 +325,7 @@ public class VillageBoundaryCalculator {
         try {
             var key = record.getPoiType().unwrapKey();
             if (key.isPresent()) {
-                return key.get().registry().getPath();
+                return key.get().identifier().getPath();
             }
         } catch (Exception e) {
             logDebug("Could not get POI type name: " + e.getMessage());
@@ -397,7 +399,7 @@ public class VillageBoundaryCalculator {
             poiManager.getInRange(
                 holder -> {
                     var key = holder.unwrapKey();
-                    return key.isPresent() && key.get().registry().getPath().equals("meeting");
+                    return key.isPresent() && key.get().identifier().getPath().equals("meeting");
                 },
                 center,
                 radius,

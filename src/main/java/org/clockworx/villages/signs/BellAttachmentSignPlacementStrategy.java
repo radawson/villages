@@ -73,7 +73,12 @@ public class BellAttachmentSignPlacementStrategy implements BiomeSignPlacementSt
         for (BlockFace face : HORIZONTAL_FACES) {
             Block pos = support.getRelative(face);
             if (canPlaceSign(pos)) {
-                positions.add(new SignPosition(pos, face.getOppositeFace()));
+                // The sign hangs on the `face` side of the support and its front must
+                // point outward (away from the support), i.e. in direction `face`.
+                // A wall sign attaches to the block opposite its facing, so facing=face
+                // attaches it to the support. (Was face.getOppositeFace() -> faced into
+                // the support and attached to the wrong/air block, so signs dropped.)
+                positions.add(new SignPosition(pos, face));
             }
         }
     }
