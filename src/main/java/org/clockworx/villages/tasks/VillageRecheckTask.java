@@ -1,7 +1,6 @@
 package org.clockworx.villages.tasks;
 
 import org.bukkit.Chunk;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -75,9 +74,9 @@ public class VillageRecheckTask extends BukkitRunnable {
             Chunk[] loadedChunks = world.getLoadedChunks();
             logger.debug(LogCategory.GENERAL, "Found " + loadedChunks.length + " loaded chunks in " + world.getName());
             
-            // Scan each loaded chunk for bells
+            // Scan each loaded chunk for bells (via the POI index, not a full block scan)
             for (Chunk chunk : loadedChunks) {
-                List<Block> bells = findBellsInChunk(chunk);
+                List<Block> bells = villageManager.findBellsInChunk(chunk);
                 totalBellsFound += bells.size();
                 
                 // Process each bell found
@@ -146,32 +145,5 @@ public class VillageRecheckTask extends BukkitRunnable {
         logger.info(LogCategory.GENERAL, "Village recheck completed: " + totalBellsFound + " bells found, " + 
             bellsMerged + " processed, " + villagesRecalculated + " boundaries recalculated, " + 
             villagesNamed + " villages named");
-    }
-    
-    /**
-     * Finds all bell blocks in a chunk.
-     * 
-     * @param chunk The chunk to scan
-     * @return List of bell blocks found
-     */
-    private List<Block> findBellsInChunk(Chunk chunk) {
-        List<Block> bells = new java.util.ArrayList<>();
-        
-        int minHeight = chunk.getWorld().getMinHeight();
-        int maxHeight = chunk.getWorld().getMaxHeight();
-        
-        // Iterate through all blocks in the chunk
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int y = minHeight; y < maxHeight; y++) {
-                    Block block = chunk.getBlock(x, y, z);
-                    if (block.getType() == Material.BELL) {
-                        bells.add(block);
-                    }
-                }
-            }
-        }
-        
-        return bells;
     }
 }

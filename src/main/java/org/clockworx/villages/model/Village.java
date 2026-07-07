@@ -107,8 +107,9 @@ public class Village {
      * @param bellLocation Location of the village bell
      */
     public Village(UUID id, Location bellLocation) {
-        this(id, 
-             bellLocation.getWorld().getName(),
+        this(id,
+             Objects.requireNonNull(bellLocation.getWorld(),
+                 "Bell location has no world (world unloaded?)").getName(),
              bellLocation.getBlockX(),
              bellLocation.getBlockY(),
              bellLocation.getBlockZ());
@@ -150,7 +151,41 @@ public class Village {
         this.createdAt = createdAt != null ? createdAt : Instant.now();
         this.updatedAt = updatedAt != null ? updatedAt : Instant.now();
     }
-    
+
+    /**
+     * Copy constructor producing an independent snapshot. The four collections are copied
+     * (their elements - VillagePoi/VillageEntrance/VillageHero/UUID - are immutable value
+     * objects); the boundary is replaced wholesale on update and never mutated in place, so
+     * sharing the reference is safe.
+     */
+    private Village(Village other) {
+        this.id = other.id;
+        this.worldName = other.worldName;
+        this.name = other.name;
+        this.bellX = other.bellX;
+        this.bellY = other.bellY;
+        this.bellZ = other.bellZ;
+        this.boundary = other.boundary;
+        this.regionId = other.regionId;
+        this.mayorId = other.mayorId;
+        this.pois = new ArrayList<>(other.pois);
+        this.entrances = new ArrayList<>(other.entrances);
+        this.councilMembers = new ArrayList<>(other.councilMembers);
+        this.heroes = new ArrayList<>(other.heroes);
+        this.createdAt = other.createdAt;
+        this.updatedAt = other.updatedAt;
+    }
+
+    /**
+     * Returns an independent snapshot safe to read on another thread while this instance
+     * continues to be mutated on the main thread (used before async storage writes).
+     *
+     * @return a copy of this village
+     */
+    public Village snapshot() {
+        return new Village(this);
+    }
+
     // ==================== Getters ====================
     
     /**

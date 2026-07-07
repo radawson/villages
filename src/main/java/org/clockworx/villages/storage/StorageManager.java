@@ -9,6 +9,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Manages storage provider lifecycle and operations.
@@ -40,6 +45,13 @@ public class StorageManager {
     private PluginLogger logger;
     private StorageProvider activeProvider;
     private StorageType activeType;
+
+    /**
+     * Dedicated, bounded executor for all storage I/O. Using a named pool (instead of
+     * the shared common ForkJoinPool) lets us cap concurrency to the DB connection pool
+     * and, crucially, drain in-flight writes on shutdown so no save is lost.
+     */
+    private ExecutorService storageExecutor;
     
     /**
      * Enumeration of available storage types.
@@ -47,29 +59,27 @@ public class StorageManager {
     public enum StorageType {
         /** YAML file-based storage */
         YAML("yaml"),
-        /** SQLite embedded database */
-        SQLITE("sqlite"),
         /** MySQL/MariaDB network database */
         MYSQL("mysql");
-        
+
         private final String id;
-        
+
         StorageType(String id) {
             this.id = id;
         }
-        
+
         public String getId() {
             return id;
         }
-        
+
         public static StorageType fromId(String id) {
-            if (id == null) return SQLITE; // Default
+            if (id == null) return MYSQL; // Default
             for (StorageType type : values()) {
                 if (type.id.equalsIgnoreCase(id)) {
                     return type;
                 }
             }
-            return SQLITE; // Default fallback
+            return MYSQL; // Default fallback (SQLite was removed in favour of MySQL)
         }
     }
     
@@ -91,13 +101,22 @@ public class StorageManager {
     public CompletableFuture<Void> initialize() {
         // Get logger (may be null during early init)
         this.logger = plugin.getPluginLogger();
-        
-        // Read storage type from config (default to SQLite)
-        String typeId = plugin.getConfig().getString("storage.type", "sqlite");
+
+        // Read storage type from config (default to MySQL)
+        String typeId = plugin.getConfig().getString("storage.type", "mysql");
+        if ("sqlite".equalsIgnoreCase(typeId)) {
+            logWarning("storage.type 'sqlite' is no longer supported and was removed; " +
+                "falling back to MySQL. Set storage.type to 'mysql' or 'yaml' in config.yml.");
+        }
         this.activeType = StorageType.fromId(typeId);
-        
+
         logInfo("Initializing storage provider: " + activeType.name());
-        
+
+        // Create the dedicated storage executor before any provider work runs on it.
+        // Sized to the MySQL pool so we never queue more concurrent DB tasks than connections.
+        int threads = Math.max(2, plugin.getConfig().getInt("storage.mysql.pool-size", 8));
+        this.storageExecutor = createStorageExecutor(threads);
+
         // Create the appropriate provider
         this.activeProvider = createProvider(activeType);
         
@@ -118,6 +137,22 @@ public class StorageManager {
      * @return CompletableFuture that completes when shutdown is done
      */
     public CompletableFuture<Void> shutdown() {
+        // Stop accepting new storage tasks and drain in-flight writes BEFORE the provider
+        // closes its connection pool, so no queued save is lost on shutdown.
+        if (storageExecutor != null) {
+            storageExecutor.shutdown();
+            try {
+                if (!storageExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    logWarning("Storage executor did not drain within 30s; forcing shutdown " +
+                        "(pending writes may be lost)");
+                    storageExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                storageExecutor.shutdownNow();
+            }
+        }
+
         if (activeProvider != null) {
             logInfo("Shutting down storage provider: " + activeProvider.getName());
             return activeProvider.shutdown()
@@ -131,6 +166,21 @@ public class StorageManager {
         }
         return CompletableFuture.completedFuture(null);
     }
+
+    /**
+     * Creates the dedicated storage executor: a fixed pool of daemon threads named
+     * "Villages-Storage-N". Daemon so an abnormal exit never hangs the JVM; we still
+     * {@code awaitTermination} on normal shutdown to flush pending writes.
+     */
+    private ExecutorService createStorageExecutor(int threads) {
+        AtomicInteger counter = new AtomicInteger(1);
+        ThreadFactory factory = runnable -> {
+            Thread t = new Thread(runnable, "Villages-Storage-" + counter.getAndIncrement());
+            t.setDaemon(true);
+            return t;
+        };
+        return Executors.newFixedThreadPool(threads, factory);
+    }
     
     /**
      * Creates a storage provider of the specified type.
@@ -140,9 +190,8 @@ public class StorageManager {
      */
     private StorageProvider createProvider(StorageType type) {
         return switch (type) {
-            case YAML -> new YamlStorageProvider(plugin);
-            case SQLITE -> new SQLiteStorageProvider(plugin);
-            case MYSQL -> new MySQLStorageProvider(plugin);
+            case YAML -> new YamlStorageProvider(plugin, storageExecutor);
+            case MYSQL -> new MySQLStorageProvider(plugin, storageExecutor);
         };
     }
     
@@ -187,7 +236,9 @@ public class StorageManager {
      * @return CompletableFuture that completes when saved
      */
     public CompletableFuture<Void> saveVillage(Village village) {
-        return getProvider().saveVillage(village);
+        // Snapshot on the calling (main) thread so the async write reads a stable copy even
+        // if the live village is mutated concurrently (prevents CME / torn writes).
+        return getProvider().saveVillage(village.snapshot());
     }
     
     /**

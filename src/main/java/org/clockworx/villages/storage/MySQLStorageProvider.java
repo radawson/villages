@@ -20,6 +20,8 @@ import java.sql.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 
 /**
@@ -52,8 +54,18 @@ public class MySQLStorageProvider implements StorageProvider {
     
     private final VillagesPlugin plugin;
     private final PluginLogger logger;
+    private final Executor executor;
     private HikariDataSource dataSource;
-    private boolean available;
+    private volatile boolean available;
+
+    /** Runs storage work on the shared, drained storage executor (see StorageManager). */
+    private CompletableFuture<Void> runAsync(Runnable task) {
+        return CompletableFuture.runAsync(task, executor);
+    }
+
+    private <T> CompletableFuture<T> supplyAsync(Supplier<T> task) {
+        return CompletableFuture.supplyAsync(task, executor);
+    }
     
     // SQL Statements (MySQL syntax)
     private static final String CREATE_VILLAGES_TABLE = """
@@ -129,9 +141,10 @@ public class MySQLStorageProvider implements StorageProvider {
      * 
      * @param plugin The plugin instance
      */
-    public MySQLStorageProvider(VillagesPlugin plugin) {
+    public MySQLStorageProvider(VillagesPlugin plugin, Executor executor) {
         this.plugin = plugin;
         this.logger = plugin.getPluginLogger();
+        this.executor = executor;
         this.available = false;
     }
     
@@ -142,7 +155,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Void> initialize() {
-        return CompletableFuture.runAsync(() -> {
+        return runAsync(() -> {
             try {
                 // Read configuration
                 ConfigurationSection mysqlConfig = plugin.getConfig().getConfigurationSection("storage.mysql");
@@ -194,13 +207,15 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Void> shutdown() {
-        return CompletableFuture.runAsync(() -> {
-            available = false;
-            if (dataSource != null && !dataSource.isClosed()) {
-                dataSource.close();
-                logger.info(LogCategory.STORAGE, "MySQL connection pool closed");
-            }
-        });
+        // Closed synchronously: StorageManager has already drained the storage executor,
+        // so the pool must not be used again here (it would reject tasks) and any
+        // in-flight writes have completed against a still-open pool.
+        available = false;
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
+            logger.info(LogCategory.STORAGE, "MySQL connection pool closed");
+        }
+        return CompletableFuture.completedFuture(null);
     }
     
     @Override
@@ -270,7 +285,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Void> saveVillage(Village village) {
-        return CompletableFuture.runAsync(() -> {
+        return runAsync(() -> {
             logger.debugStorage("Saving village " + village.getId() + " to MySQL storage");
             try (Connection conn = getConnection()) {
                 conn.setAutoCommit(false);
@@ -426,7 +441,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Optional<Village>> loadVillage(UUID id) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             logger.debugStorage("Loading village " + id + " from MySQL storage");
             try (Connection conn = getConnection()) {
                 String query = "SELECT * FROM villages WHERE id = ?";
@@ -449,7 +464,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Optional<Village>> loadVillageByBell(String worldName, int x, int y, int z) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             logger.debugStorage("Loading village by bell location: " + worldName + " " + x + ", " + y + ", " + z);
             try (Connection conn = getConnection()) {
                 String query = "SELECT * FROM villages WHERE world = ? AND bell_x = ? AND bell_y = ? AND bell_z = ?";
@@ -475,14 +490,16 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Optional<Village>> loadVillageByChunk(String worldName, int chunkX, int chunkZ) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             try (Connection conn = getConnection()) {
                 int minX = chunkX << 4;
                 int maxX = minX + 15;
                 int minZ = chunkZ << 4;
                 int maxZ = minZ + 15;
                 
-                String query = "SELECT * FROM villages WHERE world = ? AND bell_x >= ? AND bell_x <= ? AND bell_z >= ? AND bell_z <= ?";
+                // ORDER BY id so overlapping bells in a chunk resolve deterministically
+                // (previously the first arbitrary row won).
+                String query = "SELECT * FROM villages WHERE world = ? AND bell_x >= ? AND bell_x <= ? AND bell_z >= ? AND bell_z <= ? ORDER BY id LIMIT 1";
                 try (PreparedStatement ps = conn.prepareStatement(query)) {
                     ps.setString(1, worldName);
                     ps.setInt(2, minX);
@@ -509,7 +526,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<List<Village>> loadVillagesInWorld(String worldName) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             try (Connection conn = getConnection()) {
                 List<Village> villages = new ArrayList<>();
                 String query = "SELECT * FROM villages WHERE world = ?";
@@ -530,7 +547,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<List<Village>> loadAllVillages() {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             try (Connection conn = getConnection()) {
                 List<Village> villages = new ArrayList<>();
                 String query = "SELECT * FROM villages";
@@ -549,7 +566,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Boolean> deleteVillage(UUID id) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             logger.debugStorage("Deleting village " + id + " from MySQL storage");
             try (Connection conn = getConnection()) {
                 String delete = "DELETE FROM villages WHERE id = ?";
@@ -571,7 +588,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Boolean> villageExists(UUID id) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             try (Connection conn = getConnection()) {
                 String query = "SELECT 1 FROM villages WHERE id = ?";
                 try (PreparedStatement ps = conn.prepareStatement(query)) {
@@ -590,7 +607,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Integer> getVillageCount() {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             try (Connection conn = getConnection()) {
                 String query = "SELECT COUNT(*) FROM villages";
                 try (Statement stmt = conn.createStatement();
@@ -608,7 +625,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Integer> getVillageCount(String worldName) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             try (Connection conn = getConnection()) {
                 String query = "SELECT COUNT(*) FROM villages WHERE world = ?";
                 try (PreparedStatement ps = conn.prepareStatement(query)) {
@@ -628,7 +645,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<List<Village>> findVillagesNear(String worldName, int x, int z, int radius) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             try (Connection conn = getConnection()) {
                 List<Village> villages = new ArrayList<>();
                 // Use bounding box query, then filter by actual distance
@@ -667,22 +684,25 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Optional<Village>> findVillageAt(String worldName, int x, int y, int z) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             try (Connection conn = getConnection()) {
+                // ORDER BY id so a location inside overlapping boundaries resolves to the
+                // same village every time (previously the first arbitrary row won).
                 String query = """
-                    SELECT * FROM villages 
+                    SELECT * FROM villages
                     WHERE world = ?
                     AND min_x IS NOT NULL
                     AND ? BETWEEN min_x AND max_x
                     AND ? BETWEEN min_y AND max_y
                     AND ? BETWEEN min_z AND max_z
+                    ORDER BY id LIMIT 1
                     """;
                 try (PreparedStatement ps = conn.prepareStatement(query)) {
                     ps.setString(1, worldName);
                     ps.setInt(2, x);
                     ps.setInt(3, y);
                     ps.setInt(4, z);
-                    
+
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) {
                             return Optional.of(deserializeVillage(conn, rs));
@@ -700,7 +720,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Void> backup(String backupPath) {
-        return CompletableFuture.runAsync(() -> {
+        return runAsync(() -> {
             // For MySQL, export to SQL dump format
             try {
                 File backupFile = new File(backupPath);
@@ -714,6 +734,7 @@ public class MySQLStorageProvider implements StorageProvider {
                     exportTable(conn, writer, "villages");
                     exportTable(conn, writer, "village_pois");
                     exportTable(conn, writer, "village_entrances");
+                    exportTable(conn, writer, "village_heroes");
                     
                     logger.info(LogCategory.STORAGE, "Created MySQL backup at: " + backupPath);
                     logger.debugStorage("MySQL backup created: " + backupPath);
@@ -759,7 +780,7 @@ public class MySQLStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Integer> importAll(List<Village> villages, boolean overwrite) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             int count = 0;
             for (Village village : villages) {
                 try {

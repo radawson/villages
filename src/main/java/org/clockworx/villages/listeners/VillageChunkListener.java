@@ -79,34 +79,15 @@ public class VillageChunkListener implements Listener {
         
         // Get the chunk that was loaded
         var chunk = event.getChunk();
-        
-        // Get the world's min and max height for iteration
-        int minHeight = chunk.getWorld().getMinHeight();
-        int maxHeight = chunk.getWorld().getMaxHeight();
-        
-        int bellCount = 0;
-        
-        // Iterate through all blocks in the chunk
-        // A chunk is 16x16 blocks horizontally
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                // Iterate through all Y levels (height) in the chunk
-                for (int y = minHeight; y < maxHeight; y++) {
-                    // Get the block at this position
-                    Block block = chunk.getBlock(x, y, z);
-                    
-                    // Check if this block is a bell
-                    if (block.getType() == Material.BELL) {
-                        // Found a bell! Process it
-                        bellCount++;
-                        processBell(block);
-                    }
-                }
-            }
+
+        // Find bells via the POI index rather than scanning all ~98k blocks in the column.
+        var bells = villageManager.findBellsInChunk(chunk);
+        for (Block bell : bells) {
+            processBell(bell);
         }
-        
-        if (logger != null && bellCount > 0) {
-            logger.info(LogCategory.GENERAL, "Found " + bellCount + " bell(s) in chunk " + chunk.getX() + ", " + chunk.getZ());
+
+        if (logger != null && !bells.isEmpty()) {
+            logger.info(LogCategory.GENERAL, "Found " + bells.size() + " bell(s) in chunk " + chunk.getX() + ", " + chunk.getZ());
         }
     }
     
@@ -126,17 +107,20 @@ public class VillageChunkListener implements Listener {
         if (logger != null) {
             logger.debug(LogCategory.GENERAL, "Processing bell at " + bellBlock.getLocation());
         }
-        
-        // Get or create the Village for this bell
-        // This creates a full Village with calculated boundary and saves to storage
-        Village village = villageManager.getOrCreateVillage(bellBlock);
-        
-        if (logger != null) {
-            logger.debug(LogCategory.GENERAL, "Village " + village.getId() + " ready, placing signs around bell");
-        }
-        
-        // Place signs around the bell with the village name (or UUID if no name)
-        signManager.placeSignsAroundBell(bellBlock, village.getId(), village.getName());
+
+        // Resolve/create the village off the main thread (storage I/O runs on the storage
+        // executor); the returned future completes on the main thread, so the sign placement
+        // in thenAccept runs on the main thread and may safely touch the Bukkit API.
+        villageManager.getOrCreateVillageAsync(bellBlock)
+            .thenAccept(village ->
+                signManager.placeSignsAroundBell(bellBlock, village.getId(), village.getName()))
+            .exceptionally(ex -> {
+                if (logger != null) {
+                    logger.warning(LogCategory.GENERAL, "Failed to process bell at "
+                        + bellBlock.getLocation() + ": " + ex.getMessage());
+                }
+                return null;
+            });
     }
     
     /**

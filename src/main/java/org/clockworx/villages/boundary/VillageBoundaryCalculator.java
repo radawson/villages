@@ -3,10 +3,12 @@ package org.clockworx.villages.boundary;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiRecord;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.craftbukkit.CraftWorld;
@@ -414,8 +416,44 @@ public class VillageBoundaryCalculator {
     }
     
     /**
+     * Finds all bell (MEETING POI) positions within a single chunk using the POI index,
+     * instead of scanning every block in the chunk column (16x16x384 ~ 98k blocks). Must be
+     * called on the main thread.
+     *
+     * @param world  the world
+     * @param chunkX chunk X coordinate
+     * @param chunkZ chunk Z coordinate
+     * @return bell block positions in that chunk (empty if none / on error)
+     */
+    public List<Block> findBellsInChunk(World world, int chunkX, int chunkZ) {
+        List<Block> bells = new ArrayList<>();
+        try {
+            ServerLevel serverLevel = ((CraftWorld) world).getHandle();
+            PoiManager poiManager = serverLevel.getPoiManager();
+            poiManager.getInChunk(
+                holder -> {
+                    var key = holder.unwrapKey();
+                    return key.isPresent() && key.get().identifier().getPath().equals("meeting");
+                },
+                new ChunkPos(chunkX, chunkZ),
+                PoiManager.Occupancy.ANY
+            ).forEach(record -> {
+                BlockPos p = record.getPos();
+                Block block = world.getBlockAt(p.getX(), p.getY(), p.getZ());
+                // A stale POI can outlive its block; confirm a bell is actually present.
+                if (block.getType() == Material.BELL) {
+                    bells.add(block);
+                }
+            });
+        } catch (Exception e) {
+            logWarning("Failed to find bells in chunk " + chunkX + "," + chunkZ + ": " + e.getMessage());
+        }
+        return bells;
+    }
+
+    /**
      * Checks if a location is within any village boundary in the world.
-     * 
+     *
      * @param location The location to check
      * @param villages List of villages to check against
      * @return The village containing this location, or empty if none

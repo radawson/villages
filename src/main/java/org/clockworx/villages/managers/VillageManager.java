@@ -1,5 +1,6 @@
 package org.clockworx.villages.managers;
 
+import org.bukkit.Chunk;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
@@ -17,6 +18,8 @@ import org.clockworx.villages.util.PluginLogger;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * Manages village lifecycle including detection, creation, and persistence.
@@ -69,6 +72,17 @@ public class VillageManager {
     public void setNameGenerator(VillageNameGenerator nameGenerator) {
         this.nameGenerator = nameGenerator;
     }
+
+    /**
+     * Finds bell blocks in a chunk via the POI index (cheap) rather than scanning every block
+     * in the column. Must be called on the main thread.
+     *
+     * @param chunk the chunk to scan
+     * @return bell blocks present in the chunk
+     */
+    public java.util.List<Block> findBellsInChunk(Chunk chunk) {
+        return boundaryCalculator.findBellsInChunk(chunk.getWorld(), chunk.getX(), chunk.getZ());
+    }
     
     /**
      * Gets or creates a Village for a bell block.
@@ -84,100 +98,137 @@ public class VillageManager {
      * @return The Village associated with this bell
      */
     public Village getOrCreateVillage(Block bellBlock) {
+        // Synchronous variant used by command handlers (already on the main thread). It blocks
+        // on the storage lookups with join(); the hot chunk-load path should use
+        // getOrCreateVillageAsync() instead, which keeps DB round-trips off the main thread.
         logger.debug(LogCategory.GENERAL, "getOrCreateVillage called for bell at " + bellBlock.getLocation());
-        
-        // Try to get existing UUID from PDC
+
         UUID existingUuid = getUuidFromPdc(bellBlock);
-        
-        if (existingUuid != null) {
-            logger.debug(LogCategory.GENERAL, "Found existing UUID in PDC: " + existingUuid);
-            // Try to load from storage
-            Optional<Village> existing = storageManager.loadVillage(existingUuid).join();
-            if (existing.isPresent()) {
-                logger.debug(LogCategory.GENERAL, "Loaded existing village " + existingUuid + " from storage");
-                return existing.get();
-            } else {
-                logger.debug(LogCategory.GENERAL, "UUID in PDC but village not found in storage, will check by location");
-            }
-        }
-        
-        // Check storage by bell location
         String worldName = bellBlock.getWorld().getName();
         int x = bellBlock.getX();
         int y = bellBlock.getY();
         int z = bellBlock.getZ();
-        
-        logger.debug(LogCategory.GENERAL, "Checking storage for village by bell location: " + worldName + " " + x + ", " + y + ", " + z);
+
+        if (existingUuid != null) {
+            Optional<Village> existing = storageManager.loadVillage(existingUuid).join();
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
         Optional<Village> byBell = storageManager.loadVillageByBell(worldName, x, y, z).join();
         if (byBell.isPresent()) {
-            Village village = byBell.get();
-            logger.debug(LogCategory.GENERAL, "Found village " + village.getId() + " by bell location, updating PDC");
-            // Ensure PDC is updated
-            setUuidInPdc(bellBlock, village.getId());
-            return village;
+            return attachExistingVillage(bellBlock, byBell.get(), false);
         }
-        
-        // Check if this bell is within an existing village's boundary (bell merging)
-        logger.debug(LogCategory.GENERAL, "Checking if bell is within existing village boundary for merging");
-        Optional<Village> existingVillage = storageManager.findVillageAt(worldName, x, y, z).join();
-        if (existingVillage.isPresent()) {
-            Village village = existingVillage.get();
-            logger.info(LogCategory.GENERAL, "Bell at " + bellBlock.getLocation() + 
-                " is within existing village " + village.getId() + " boundary, merging bells");
-            
-            // Update bell's PDC with existing village UUID
-            setUuidInPdc(bellBlock, village.getId());
-            
-            // Optionally recalculate boundary to ensure it encompasses all bells
-            // This helps if the new bell extends the village boundary
-            logger.debug(LogCategory.GENERAL, "Recalculating boundary for village " + village.getId() + " after bell merge");
+        Optional<Village> byBoundary = storageManager.findVillageAt(worldName, x, y, z).join();
+        if (byBoundary.isPresent()) {
+            return attachExistingVillage(bellBlock, byBoundary.get(), true);
+        }
+        return createNewVillage(bellBlock, existingUuid);
+    }
+
+    /**
+     * Asynchronous get-or-create for the chunk-load hot path. The storage lookups run on the
+     * storage executor (off the main thread); the boundary calculation (NMS), PDC writes and
+     * marker updates hop back onto the main thread via {@link #runOnMain(Supplier)}. The
+     * returned future completes on the main thread, so callers may touch the Bukkit API in a
+     * {@code thenAccept}. Must be invoked from the main thread (it reads the bell's PDC).
+     *
+     * @param bellBlock the bell block
+     * @return a future completing with the village associated with this bell
+     */
+    public CompletableFuture<Village> getOrCreateVillageAsync(Block bellBlock) {
+        UUID existingUuid = getUuidFromPdc(bellBlock);
+        String worldName = bellBlock.getWorld().getName();
+        int x = bellBlock.getX();
+        int y = bellBlock.getY();
+        int z = bellBlock.getZ();
+
+        CompletableFuture<Optional<Village>> byUuid = (existingUuid != null)
+            ? storageManager.loadVillage(existingUuid)
+            : CompletableFuture.completedFuture(Optional.empty());
+
+        return byUuid
+            .thenCompose(opt -> opt.isPresent()
+                ? CompletableFuture.completedFuture(opt)
+                : storageManager.loadVillageByBell(worldName, x, y, z))
+            .thenCompose(opt -> {
+                if (opt.isPresent()) {
+                    Village v = opt.get();
+                    return runOnMain(() -> attachExistingVillage(bellBlock, v, false));
+                }
+                return storageManager.findVillageAt(worldName, x, y, z)
+                    .thenCompose(merge -> runOnMain(() -> merge.isPresent()
+                        ? attachExistingVillage(bellBlock, merge.get(), true)
+                        : createNewVillage(bellBlock, existingUuid)));
+            });
+    }
+
+    /**
+     * Main-thread: links an existing village to this bell (updates the bell PDC) and, when the
+     * bell falls inside an existing boundary, extends that boundary to include it.
+     */
+    private Village attachExistingVillage(Block bellBlock, Village village, boolean recalcBoundary) {
+        setUuidInPdc(bellBlock, village.getId());
+        if (recalcBoundary) {
+            logger.info(LogCategory.GENERAL, "Bell at " + bellBlock.getLocation()
+                + " merges into existing village " + village.getId() + "; recalculating boundary");
             VillageBoundary newBoundary = boundaryCalculator.calculateAndPopulate(village);
             if (newBoundary != null) {
                 village.setBoundary(newBoundary);
-                // Save updated village asynchronously
                 saveVillageAsync(village);
-                logger.debug(LogCategory.GENERAL, "Updated boundary for village " + village.getId() + " after bell merge");
             }
-            
-            return village;
         }
-        
-        // Create new village
-        UUID newUuid = existingUuid != null ? existingUuid : UUID.randomUUID();
+        return village;
+    }
+
+    /**
+     * Main-thread: creates, persists (async) and auto-names a brand-new village for this bell.
+     */
+    private Village createNewVillage(Block bellBlock, UUID preferredUuid) {
+        UUID newUuid = preferredUuid != null ? preferredUuid : UUID.randomUUID();
         logger.debug(LogCategory.GENERAL, "Creating new village with UUID: " + newUuid);
         Village village = new Village(newUuid, bellBlock.getLocation());
-        
-        // Calculate boundary
-        logger.debug(LogCategory.GENERAL, "Calculating boundary for new village " + newUuid);
+
         VillageBoundary boundary = boundaryCalculator.calculateAndPopulate(village);
         village.setBoundary(boundary);
-        
-        // Save to storage
-        storageManager.saveVillage(village).join();
-        logger.debug(LogCategory.GENERAL, "Saved new village " + newUuid + " to storage");
-        
-        // Cache UUID in PDC
+        saveVillageAsync(village);
         setUuidInPdc(bellBlock, newUuid);
-        
-        // Generate automatic name if village is unnamed
+
         if (nameGenerator != null && !village.hasName()) {
             String generatedName = nameGenerator.generateName(village);
             if (generatedName != null) {
                 village.setName(generatedName);
-                // Save village with new name
                 saveVillageAsync(village);
                 logger.info(LogCategory.GENERAL, "Auto-named village " + newUuid + " to: " + generatedName);
             }
         }
-        
-        // Notify BlueMap integration (if enabled)
+
         if (plugin.getBlueMapIntegration() != null && plugin.getBlueMapIntegration().isEnabled()) {
             plugin.getBlueMapIntegration().getMarkerManager().createVillageMarkers(village);
         }
-        
+
         logger.info(LogCategory.GENERAL, "Created new village " + newUuid + " at " + bellBlock.getLocation());
-        
         return village;
+    }
+
+    /**
+     * Runs a task on the server main thread and returns a future for its result. Executes
+     * inline if already on the main thread (avoids a needless scheduler round-trip and the
+     * deadlock that a main-thread join() on a scheduled task would cause).
+     */
+    private <T> CompletableFuture<T> runOnMain(Supplier<T> task) {
+        if (plugin.getServer().isPrimaryThread()) {
+            return CompletableFuture.completedFuture(task.get());
+        }
+        CompletableFuture<T> future = new CompletableFuture<>();
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            try {
+                future.complete(task.get());
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+        });
+        return future;
     }
     
     /**

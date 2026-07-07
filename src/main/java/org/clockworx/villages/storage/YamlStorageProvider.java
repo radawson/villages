@@ -19,7 +19,9 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
@@ -73,8 +75,18 @@ public class YamlStorageProvider implements StorageProvider {
     
     private final VillagesPlugin plugin;
     private final PluginLogger logger;
+    private final Executor executor;
     private final File storageFile;
     private final ReentrantReadWriteLock lock;
+
+    /** Runs storage work on the shared, drained storage executor (see StorageManager). */
+    private CompletableFuture<Void> runAsync(Runnable task) {
+        return CompletableFuture.runAsync(task, executor);
+    }
+
+    private <T> CompletableFuture<T> supplyAsync(Supplier<T> task) {
+        return CompletableFuture.supplyAsync(task, executor);
+    }
     private YamlConfiguration config;
     private boolean available;
     
@@ -87,9 +99,10 @@ public class YamlStorageProvider implements StorageProvider {
      * 
      * @param plugin The plugin instance
      */
-    public YamlStorageProvider(VillagesPlugin plugin) {
+    public YamlStorageProvider(VillagesPlugin plugin, Executor executor) {
         this.plugin = plugin;
         this.logger = plugin.getPluginLogger();
+        this.executor = executor;
         this.storageFile = new File(plugin.getDataFolder(), "villages.yml");
         this.lock = new ReentrantReadWriteLock();
         this.villageCache = new HashMap<>();
@@ -104,7 +117,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Void> initialize() {
-        return CompletableFuture.runAsync(() -> {
+        return runAsync(() -> {
             lock.writeLock().lock();
             try {
                 // Ensure data folder exists
@@ -144,19 +157,21 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Void> shutdown() {
-        return CompletableFuture.runAsync(() -> {
-            lock.writeLock().lock();
-            try {
-                if (config != null) {
-                    save();
-                }
-                available = false;
-                villageCache.clear();
-                cacheValid = false;
-            } finally {
-                lock.writeLock().unlock();
+        // Synchronous: StorageManager has already drained the storage executor, so the
+        // final flush must run here directly (submitting to the drained executor would
+        // be rejected and the last save lost).
+        lock.writeLock().lock();
+        try {
+            if (config != null) {
+                save();
             }
-        });
+            available = false;
+            villageCache.clear();
+            cacheValid = false;
+        } finally {
+            lock.writeLock().unlock();
+        }
+        return CompletableFuture.completedFuture(null);
     }
     
     @Override
@@ -168,7 +183,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Void> saveVillage(Village village) {
-        return CompletableFuture.runAsync(() -> {
+        return runAsync(() -> {
             logger.debugStorage("Saving village " + village.getId() + " to YAML storage");
             lock.writeLock().lock();
             try {
@@ -278,7 +293,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Optional<Village>> loadVillage(UUID id) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             logger.debugStorage("Loading village " + id + " from YAML storage");
             lock.readLock().lock();
             try {
@@ -314,7 +329,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Optional<Village>> loadVillageByBell(String worldName, int x, int y, int z) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             logger.debugStorage("Loading village by bell location: " + worldName + " " + x + ", " + y + ", " + z);
             lock.readLock().lock();
             try {
@@ -341,7 +356,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Optional<Village>> loadVillageByChunk(String worldName, int chunkX, int chunkZ) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             lock.readLock().lock();
             try {
                 ensureCacheValid();
@@ -364,7 +379,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<List<Village>> loadVillagesInWorld(String worldName) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             lock.readLock().lock();
             try {
                 ensureCacheValid();
@@ -381,7 +396,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<List<Village>> loadAllVillages() {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             lock.readLock().lock();
             try {
                 ensureCacheValid();
@@ -394,7 +409,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Boolean> deleteVillage(UUID id) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             logger.debugStorage("Deleting village " + id + " from YAML storage");
             lock.writeLock().lock();
             try {
@@ -419,7 +434,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Boolean> villageExists(UUID id) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             lock.readLock().lock();
             try {
                 if (cacheValid) {
@@ -436,7 +451,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Integer> getVillageCount() {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             lock.readLock().lock();
             try {
                 ensureCacheValid();
@@ -449,7 +464,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Integer> getVillageCount(String worldName) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             lock.readLock().lock();
             try {
                 ensureCacheValid();
@@ -464,7 +479,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<List<Village>> findVillagesNear(String worldName, int x, int z, int radius) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             lock.readLock().lock();
             try {
                 ensureCacheValid();
@@ -487,7 +502,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Optional<Village>> findVillageAt(String worldName, int x, int y, int z) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             lock.readLock().lock();
             try {
                 ensureCacheValid();
@@ -507,7 +522,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Void> backup(String backupPath) {
-        return CompletableFuture.runAsync(() -> {
+        return runAsync(() -> {
             lock.readLock().lock();
             try {
                 File backupFile = new File(backupPath);
@@ -529,7 +544,7 @@ public class YamlStorageProvider implements StorageProvider {
     
     @Override
     public CompletableFuture<Integer> importAll(List<Village> villages, boolean overwrite) {
-        return CompletableFuture.supplyAsync(() -> {
+        return supplyAsync(() -> {
             int count = 0;
             for (Village village : villages) {
                 if (overwrite || !villageCache.containsKey(village.getId())) {
@@ -669,20 +684,25 @@ public class YamlStorageProvider implements StorageProvider {
                 List<VillageHero> heroes = new ArrayList<>();
                 for (Object heroObj : heroesList) {
                     if (heroObj instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> heroMap = (Map<String, Object>) heroObj;
-                        String playerId = (String) heroMap.get("playerId");
-                        String earnedAt = (String) heroMap.get("earnedAt");
-                        int raidLevel = ((Number) heroMap.get("raidLevel")).intValue();
-                        int defenseCount = ((Number) heroMap.get("defenseCount")).intValue();
-                        VillageHero hero = VillageHero.fromStorage(
-                            UUID.fromString(playerId),
-                            parseInstant(earnedAt),
-                            raidLevel,
-                            defenseCount
-                        );
-                        if (hero != null) {
-                            heroes.add(hero);
+                        try {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> heroMap = (Map<String, Object>) heroObj;
+                            String playerId = (String) heroMap.get("playerId");
+                            String earnedAt = (String) heroMap.get("earnedAt");
+                            int raidLevel = ((Number) heroMap.get("raidLevel")).intValue();
+                            int defenseCount = ((Number) heroMap.get("defenseCount")).intValue();
+                            VillageHero hero = VillageHero.fromStorage(
+                                UUID.fromString(playerId),
+                                parseInstant(earnedAt),
+                                raidLevel,
+                                defenseCount
+                            );
+                            if (hero != null) {
+                                heroes.add(hero);
+                            }
+                        } catch (Exception e) {
+                            // Skip one malformed hero rather than dropping the whole village.
+                            logger.warning(LogCategory.STORAGE, "Skipping malformed hero entry in village " + id + ": " + e.getMessage());
                         }
                     }
                 }
@@ -695,13 +715,17 @@ public class YamlStorageProvider implements StorageProvider {
                 List<VillagePoi> pois = new ArrayList<>();
                 for (Object poiObj : poisList) {
                     if (poiObj instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> poiMap = (Map<String, Object>) poiObj;
-                        String type = (String) poiMap.get("type");
-                        int px = ((Number) poiMap.get("x")).intValue();
-                        int py = ((Number) poiMap.get("y")).intValue();
-                        int pz = ((Number) poiMap.get("z")).intValue();
-                        pois.add(new VillagePoi(type, px, py, pz));
+                        try {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> poiMap = (Map<String, Object>) poiObj;
+                            String type = (String) poiMap.get("type");
+                            int px = ((Number) poiMap.get("x")).intValue();
+                            int py = ((Number) poiMap.get("y")).intValue();
+                            int pz = ((Number) poiMap.get("z")).intValue();
+                            pois.add(new VillagePoi(type, px, py, pz));
+                        } catch (Exception e) {
+                            logger.warning(LogCategory.STORAGE, "Skipping malformed POI entry in village " + id + ": " + e.getMessage());
+                        }
                     }
                 }
                 village.setPois(pois);
@@ -713,15 +737,19 @@ public class YamlStorageProvider implements StorageProvider {
                 List<VillageEntrance> entrances = new ArrayList<>();
                 for (Object entranceObj : entrancesList) {
                     if (entranceObj instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> entranceMap = (Map<String, Object>) entranceObj;
-                        int ex = ((Number) entranceMap.get("x")).intValue();
-                        int ey = ((Number) entranceMap.get("y")).intValue();
-                        int ez = ((Number) entranceMap.get("z")).intValue();
-                        String facing = (String) entranceMap.get("facing");
-                        boolean autoDetected = (Boolean) entranceMap.getOrDefault("autoDetected", false);
-                        entrances.add(new VillageEntrance(ex, ey, ez, 
-                            VillageEntrance.faceFromString(facing), autoDetected));
+                        try {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> entranceMap = (Map<String, Object>) entranceObj;
+                            int ex = ((Number) entranceMap.get("x")).intValue();
+                            int ey = ((Number) entranceMap.get("y")).intValue();
+                            int ez = ((Number) entranceMap.get("z")).intValue();
+                            String facing = (String) entranceMap.get("facing");
+                            boolean autoDetected = (Boolean) entranceMap.getOrDefault("autoDetected", false);
+                            entrances.add(new VillageEntrance(ex, ey, ez,
+                                VillageEntrance.faceFromString(facing), autoDetected));
+                        } catch (Exception e) {
+                            logger.warning(LogCategory.STORAGE, "Skipping malformed entrance entry in village " + id + ": " + e.getMessage());
+                        }
                     }
                 }
                 village.setEntrances(entrances);
