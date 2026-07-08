@@ -114,7 +114,42 @@ public class ConfigManager {
      * @return The SQLite file name
      */
     public String getSQLiteFile() {
-        return config.getString("storage.sqlite.file", "villages.db");
+        return config.getString("storage.sqlite.file", "data/villages.db");
+    }
+
+    /**
+     * Builds the shared-library connection settings from this configuration.
+     * Used by both Flyway migrations and the Hibernate session manager.
+     * Constructs the JDBC URL from the type-specific config sections
+     * ({@code storage.mysql.*} or {@code storage.sqlite.file} relative to the data folder).
+     *
+     * @return the database settings for the clockworx-data layer
+     * @throws IllegalArgumentException if storage type is not sqlite or mysql
+     */
+    public org.clockworx.data.DatabaseSettings getDatabaseSettings() {
+        String typeId = config.getString("storage.type", "mysql");
+        org.clockworx.data.DatabaseType type = org.clockworx.data.DatabaseType.fromString(typeId);
+
+        MySQLConfig mysql = getMySQLConfig();
+        String url;
+        String user = "";
+        String password = "";
+
+        if (type == org.clockworx.data.DatabaseType.SQLITE) {
+            java.io.File dbFile = new java.io.File(plugin.getDataFolder(), getSQLiteFile());
+            dbFile.getParentFile().mkdirs();
+            url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
+        } else {
+            url = String.format(
+                    "jdbc:mysql://%s:%d/%s?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8",
+                    mysql.host(), mysql.port(), mysql.database());
+            user = mysql.username();
+            password = mysql.password();
+        }
+
+        return new org.clockworx.data.DatabaseSettings(
+                type, url, user, password, mysql.prefix(),
+                mysql.poolSize(), 2, 300_000L, 10_000L, false, "validate");
     }
     
     /**

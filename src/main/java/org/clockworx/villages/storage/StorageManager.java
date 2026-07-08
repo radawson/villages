@@ -59,6 +59,8 @@ public class StorageManager {
     public enum StorageType {
         /** YAML file-based storage */
         YAML("yaml"),
+        /** SQLite embedded database */
+        SQLITE("sqlite"),
         /** MySQL/MariaDB network database */
         MYSQL("mysql");
 
@@ -73,13 +75,13 @@ public class StorageManager {
         }
 
         public static StorageType fromId(String id) {
-            if (id == null) return MYSQL; // Default
+            if (id == null) return MYSQL;
             for (StorageType type : values()) {
                 if (type.id.equalsIgnoreCase(id)) {
                     return type;
                 }
             }
-            return MYSQL; // Default fallback (SQLite was removed in favour of MySQL)
+            return MYSQL;
         }
     }
     
@@ -102,19 +104,16 @@ public class StorageManager {
         // Get logger (may be null during early init)
         this.logger = plugin.getPluginLogger();
 
-        // Read storage type from config (default to MySQL)
         String typeId = plugin.getConfig().getString("storage.type", "mysql");
-        if ("sqlite".equalsIgnoreCase(typeId)) {
-            logWarning("storage.type 'sqlite' is no longer supported and was removed; " +
-                "falling back to MySQL. Set storage.type to 'mysql' or 'yaml' in config.yml.");
-        }
         this.activeType = StorageType.fromId(typeId);
 
         logInfo("Initializing storage provider: " + activeType.name());
 
         // Create the dedicated storage executor before any provider work runs on it.
-        // Sized to the MySQL pool so we never queue more concurrent DB tasks than connections.
-        int threads = Math.max(2, plugin.getConfig().getInt("storage.mysql.pool-size", 8));
+        int threads = switch (activeType) {
+            case YAML, SQLITE -> 2;
+            case MYSQL -> Math.max(2, plugin.getConfig().getInt("storage.mysql.pool-size", 8));
+        };
         this.storageExecutor = createStorageExecutor(threads);
 
         // Create the appropriate provider
@@ -191,7 +190,8 @@ public class StorageManager {
     private StorageProvider createProvider(StorageType type) {
         return switch (type) {
             case YAML -> new YamlStorageProvider(plugin, storageExecutor);
-            case MYSQL -> new MySQLStorageProvider(plugin, storageExecutor);
+            case SQLITE -> new HibernateStorageProvider(plugin, storageExecutor, "sqlite");
+            case MYSQL -> new HibernateStorageProvider(plugin, storageExecutor, "mysql");
         };
     }
     

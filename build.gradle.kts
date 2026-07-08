@@ -1,6 +1,6 @@
 plugins {
     id("java")
-    id("com.gradleup.shadow") version "9.0.0-beta12"
+    id("com.gradleup.shadow") version "9.5.1"
     id("io.papermc.paperweight.userdev") version "2.0.0-beta.21"
 }
 
@@ -38,14 +38,9 @@ dependencies {
   // implementation("dev.jorel:commandapi-bukkit-shade:11.1.0")
   implementation(files("libs/commandapi-bukkit-shade-11.1.0.jar"))
   
-  // SQLite JDBC driver - embedded database, no external server needed
-  implementation("org.xerial:sqlite-jdbc:3.45.1.0")
-  
-  // HikariCP - high-performance connection pooling for MySQL
-  implementation("com.zaxxer:HikariCP:5.1.0")
-  
-  // MySQL connector - only loaded if MySQL is configured (compileOnly to reduce JAR size)
-  compileOnly("com.mysql:mysql-connector-j:8.3.0")
+  // Shared Clockworx data layer (Hibernate + Flyway + HikariCP + JDBC drivers)
+  // Provided via composite build from ../clockworx-data (see settings.gradle.kts)
+  implementation("org.clockworx:clockworx-data:0.1.0-SNAPSHOT")
   
   // WorldGuard and WorldEdit - soft dependencies for region management
   compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.9")
@@ -137,12 +132,23 @@ tasks.jar {
 // Configure shadowJar for distribution
 // ShadowJar includes all dependencies (like CommandAPI) in the final JAR
 tasks.shadowJar {
+  enableAutoRelocation = false
   archiveBaseName.set("Villages")
   archiveVersion.set(project.property("version") as String)
   manifest {
     attributes["paperweight-mappings-namespace"] = "mojang"
   }
-  
+
+  relocate("com.zaxxer.hikari", "org.clockworx.villages.lib.hikari")
+  relocate("org.hibernate", "org.clockworx.villages.lib.hibernate")
+  relocate("org.jboss.logging", "org.clockworx.villages.lib.jboss.logging")
+  relocate("jakarta.persistence", "org.clockworx.villages.lib.jakarta.persistence")
+  relocate("org.flywaydb", "org.clockworx.villages.lib.flywaydb")
+  relocate("org.xerial.sqlite", "org.clockworx.villages.lib.xerial.sqlite")
+
+  // Exclude the core SQLite package from relocation to preserve JNI native loading
+  exclude("org/sqlite/**")
+
   // Include runtime classpath dependencies (CommandAPI will be included)
   from(project.configurations.runtimeClasspath) {
     // Exclude paperweight dev bundle - it's only for development
@@ -150,18 +156,15 @@ tasks.shadowJar {
     // Exclude plugin.yml from dependencies - we have our own
     exclude("plugin.yml")
   }
-  
+
   // Exclude Maven metadata (not needed in final JAR)
   exclude("META-INF/maven/**")
-  
+
   // Merge service files if any
   mergeServiceFiles()
-  
-  // Our plugin.yml from src/main/resources is included automatically
-  // and will be in the JAR, but CommandAPI's plugin.yml might overwrite it
-  // So we need to ensure ours is last by using duplicatesStrategy
+
   duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-  
+
   // Don't relocate CommandAPI - it's already designed to be shaded
   // and relocation would break the imports
 }
