@@ -38,9 +38,25 @@ dependencies {
   // implementation("dev.jorel:commandapi-bukkit-shade:11.1.0")
   implementation(files("libs/commandapi-bukkit-shade-11.1.0.jar"))
   
-  // Shared Clockworx data layer (Hibernate + Flyway + HikariCP + JDBC drivers)
-  // Provided via composite build from ../clockworx-data (see settings.gradle.kts)
-  implementation("org.clockworx:clockworx-data:0.1.0-SNAPSHOT")
+  // Shared Clockworx data layer. Its own classes are bundled; its heavy Maven deps
+  // (Hibernate/Flyway/HikariCP/JDBC) are NOT shaded (isTransitive=false) -- they are loaded
+  // at runtime by Paper's library-loader (see VillagesLoader). Removes the per-plugin
+  // relocation + service-file merge and shrinks the jar.
+  implementation("org.clockworx:clockworx-data:0.1.0-SNAPSHOT") { isTransitive = false }
+
+  // DB stack -- compile-only: compiled against, but provided at runtime by the library-loader,
+  // not bundled. Keep in sync with clockworx-data's api() deps and VillagesLoader.LIBRARIES.
+  compileOnly("org.hibernate:hibernate-core:6.6.40.Final")
+  compileOnly("org.hibernate:hibernate-community-dialects:6.6.40.Final")
+  compileOnly("org.hibernate.orm:hibernate-hikaricp:6.6.40.Final")
+  compileOnly("jakarta.persistence:jakarta.persistence-api:3.1.0")
+  compileOnly("org.flywaydb:flyway-core:12.10.0")
+  compileOnly("org.flywaydb:flyway-mysql:12.10.0")
+  compileOnly("com.zaxxer:HikariCP:7.1.0")
+  compileOnly("org.jboss.logging:jboss-logging:3.6.1.Final")
+  compileOnly("org.xerial:sqlite-jdbc:3.53.2.0")
+  compileOnly("com.mysql:mysql-connector-j:9.1.0")
+  compileOnly("org.postgresql:postgresql:42.7.11")
   
   // WorldGuard and WorldEdit - soft dependencies for region management
   compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.9")
@@ -139,15 +155,8 @@ tasks.shadowJar {
     attributes["paperweight-mappings-namespace"] = "mojang"
   }
 
-  relocate("com.zaxxer.hikari", "org.clockworx.villages.lib.hikari")
-  relocate("org.hibernate", "org.clockworx.villages.lib.hibernate")
-  relocate("org.jboss.logging", "org.clockworx.villages.lib.jboss.logging")
-  relocate("jakarta.persistence", "org.clockworx.villages.lib.jakarta.persistence")
-  relocate("org.flywaydb", "org.clockworx.villages.lib.flywaydb")
-  relocate("org.xerial.sqlite", "org.clockworx.villages.lib.xerial.sqlite")
-
-  // Exclude the core SQLite package from relocation to preserve JNI native loading
-  exclude("org/sqlite/**")
+  // The DB stack (Hibernate/Flyway/HikariCP/JDBC) is loaded at runtime via the
+  // library-loader (VillagesLoader), so it is neither bundled nor relocated here.
 
   // Include runtime classpath dependencies (CommandAPI will be included)
   from(project.configurations.runtimeClasspath) {
